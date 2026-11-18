@@ -170,6 +170,11 @@ To sign and notarize the installer later, add `PKG_SIGN_IDENTITY` and
 `NOTARY_PROFILE` secrets to the repository and set up the signing certificate on the
 build machine (see `installer/macos/build-pkg.sh`).
 
+## Help and privacy
+
+- [Getting help](SUPPORT.md)
+- [Privacy Policy](PRIVACY.md)
+
 ## License
 
 Copyright (C) 2026 Kevin Loux
