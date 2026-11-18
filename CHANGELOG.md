@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.5.0
+
+- The family schedule for the next 7 days is shared with the app (Family Dashboard 2.3), so parents see today and tomorrow on their phone anywhere, not just at home. Updated only when something changes.
+- Web dashboard: chores and bounties are shown separately. Bounties are open to any kid, first one done earns it; chores belong to one kid.
+
 ## 5.4.0
 
 - New web dashboard: open the server's address (for example http://192.168.1.20:3000) in any browser on your home network. Today, calendar (agenda, week, month), weather with radar, travel with the full-screen bus map, and chores you can check off by tapping.

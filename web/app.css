@@ -223,3 +223,5 @@ a { color: var(--accent); }
 @media (min-width: 1600px) and (min-height: 860px) {
   #app { zoom: 1.1; }
 }
+
+.tag { display: inline-block; font-size: 12px; font-weight: 700; color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 0 6px; margin-left: 6px; vertical-align: 2px; }

@@ -236,8 +236,9 @@
 
     const chores = arr(d.chores);
     const kids = arr(d.users);
-    const choreCard = `<div class="card click" data-go="chores"><h3>Chores up for grabs <small>${chores.length} open</small></h3>
-      <div class="chore-list">${chores.slice(0, 5).map(c => `<div class="chore-row"><span>${esc(c.title)}</span><span class="reward">${esc(reward(c.displayReward))}</span></div>`).join('') || '<div class="empty">All caught up.</div>'}</div>
+    const ordered = [...chores.filter(c => !c.assignedTo), ...chores.filter(c => c.assignedTo)];
+    const choreCard = `<div class="card click" data-go="chores"><h3>Chores &amp; bounties <small>${chores.length} open</small></h3>
+      <div class="chore-list">${ordered.slice(0, 5).map(c => `<div class="chore-row"><span>${esc(c.title)}${c.assignedTo ? '' : ' <span class="tag">Bounty</span>'}</span><span class="reward">${esc(reward(c.displayReward))}</span></div>`).join('') || '<div class="empty">All caught up.</div>'}</div>
       ${kids.length ? `<div class="people" style="margin-top:10px">${kids.map(k => `<span class="chip"><i style="background:${css(k.colorHex)}"></i>${esc(titleCase(k.name))} · ${esc(k.earnedLabel || k.earnedTotal || 0)}</span>`).join('')}</div>` : ''}
     </div>`;
 
@@ -344,10 +345,13 @@
     const nameOf = (mid) => people().find(p => p.id === String(mid || '').toLowerCase())?.name || '';
     viewEl.innerHTML = `${kids.length ? `<div class="kids">${kids.map(k => `<div class="card kid"><div class="eyebrow" style="color:${css(k.colorHex)}">${esc(titleCase(k.name))}</div>
         <div class="amount">${esc(Number.isFinite(k.earnedPoints) ? k.earnedPoints : (k.earnedTotal ?? 0))}</div>
-        <div class="faint small">${esc(Number(k.earnedMinutes) > 0 ? `points, plus ${k.earnedMinutes} min of time` : 'points earned')}${k.pendingCount ? ` · ${k.pendingCount} waiting for OK` : ''}</div></div>`).join('')}</div>` : ''}
-      <div class="card" style="margin-top:var(--gap)"><h3>Up for grabs <small>${chores.length} open · tap one when it's done</small></h3>
-        <div class="chores-grid">${chores.map(c => `<button class="chore" data-chore="${esc(c.id)}"><span class="title">${esc(c.title)}${c.assignedMember || c.assignedTo ? `<span class="who">${esc(nameOf(c.assignedMember || c.assignedTo) || 'Assigned')}</span>` : ''}</span><span class="reward">${esc(reward(c.displayReward))}</span></button>`).join('') || '<div class="empty">All caught up. There are no open chores right now.</div>'}</div>
-      </div>`;
+        <div class="faint small">${esc(Number(k.earnedMinutes) > 0 ? `points, plus ${k.earnedMinutes} min of time` : 'points earned')}${k.pendingCount ? ` · ${k.pendingCount} waiting for a parent` : ''}</div></div>`).join('')}</div>` : ''}
+      ${section('Bounties', 'Any kid can grab these. First one done earns it.', chores.filter(c => !c.assignedTo), 'No bounties posted right now.')}
+      ${section('Chores', 'Each one is a specific kid\'s job. Tap one when it\'s done.', chores.filter(c => c.assignedTo), 'All caught up. No chores waiting.')}`;
+    function section(title, hint, list, empty) {
+      return `<div class="card" style="margin-top:var(--gap)"><h3>${title} <small>${list.length} open · ${hint}</small></h3>
+        <div class="chores-grid">${list.map(c => `<button class="chore" data-chore="${esc(c.id)}"><span class="title">${esc(c.title)}${c.assignedMember || c.assignedTo ? `<span class="who">${esc(nameOf(c.assignedMember || c.assignedTo) || 'Assigned')}</span>` : ''}</span><span class="reward">${esc(reward(c.displayReward))}</span></button>`).join('') || `<div class="empty">${empty}</div>`}</div></div>`;
+    }
   }
 
   // ---- full-screen and travel maps ------------------------------------------------------------

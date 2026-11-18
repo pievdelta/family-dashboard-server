@@ -1825,6 +1825,7 @@ async function startFamilyCloud() {
       requestRestart
     });
     startHealthReports(root);
+    startAgendaSync(root);
   } catch (e) {
     console.error(`[Firebase] ${e.message}`);
   }
@@ -1850,6 +1851,52 @@ function healthReport() {
     bus: { configured: busHealth.configured, ok: busHealth.configured ? !busProblem : null, problem: busProblem },
     update: { available: updater.available() ? updater.status.latest.version : null }
   };
+}
+
+// The family schedule for the next 7 days, for the app (it can't reach this
+// server away from home, but it can read Firebase). Written only when it changes.
+function buildAgenda() {
+  const cal = buildCalendarPayloadFromCache(cachedBountyData.users, 'all');
+  const slim = (e) => ({
+    title: e.title,
+    time: e.isAllDay ? null : e.timeLabel,
+    startMs: e.startMs,
+    endMs: e.endMs || null,
+    who: e.calendarName || '',
+    color: e.colorHex || '',
+    location: e.location || '',
+    kind: e.kind || null
+  });
+  const days = [];
+  const add = (iso, label, ev) => {
+    let d = days.find(x => x.iso === iso);
+    if (!d) { d = { iso, label, events: [] }; days.push(d); }
+    if (d.events.length < 20) d.events.push(slim(ev));
+  };
+  for (const e of cal.todayEvents) add(e.isoDate, 'Today', e);
+  for (const e of cal.list) {
+    if (days.length >= 7 && !days.some(d => d.iso === e.isoDate)) break;
+    add(e.isoDate, e.dateLabel || e.shortDate || e.isoDate, e);
+  }
+  return days;
+}
+
+function startAgendaSync(root) {
+  const ref = root.collection('config').doc('agenda');
+  let last = '';
+  const sync = async () => {
+    try {
+      const days = buildAgenda();
+      const text = JSON.stringify(days);
+      if (text === last) return;
+      await ref.set({ days, updatedAt: Date.now() });
+      last = text;
+    } catch (e) {
+      console.error(`[Agenda] Couldn't share the schedule with the app: ${e.message}`);
+    }
+  };
+  setTimeout(sync, 30000);
+  setInterval(sync, 2 * 60 * 1000).unref?.();
 }
 
 function startHealthReports(root) {
