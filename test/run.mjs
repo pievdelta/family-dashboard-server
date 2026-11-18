@@ -54,6 +54,13 @@ await test('server starts and answers', async () => {
     const setup = await (await fetch(`${base}/setup`)).text();
     assert.match(setup, /Family Dashboard setup/);
     assert.match(setup, /Updates/);
+    const page = await (await fetch(`${base}/`)).text();
+    assert.match(page, /web\/app\.js/, 'web dashboard page is served');
+    assert.equal((await fetch(`${base}/web/app.js`)).status, 200);
+    const peek = await (await fetch(`${base}/api/dashboard?who=nobody&wx=grandma`)).json();
+    assert.equal(peek.selectedWxLoc, 'grandma', 'web can look at another city');
+    const after = await (await fetch(`${base}/api/dashboard`)).json();
+    assert.notEqual(after.selectedWxLoc, 'grandma', 'looking from the web does not change the TV');
     const map = await fetch(`${base}/api/map/full`);
     assert.equal(map.status, 200);
     const mapJson = await map.json();

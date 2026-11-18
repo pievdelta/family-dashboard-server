@@ -14,6 +14,7 @@ firestore.rules package.json package-lock.json household.example.json config.exa
 rm -rf "dist/$NAME" "dist/$NAME.tar.gz"
 mkdir -p "dist/$NAME"
 for f in $FILES; do cp "$f" "dist/$NAME/"; done
+cp -R web "dist/$NAME/web"
 # never ship code that doesn't even parse
 for f in dist/$NAME/*.js; do node --check "$f"; done
 cp -R node_modules "dist/$NAME/node_modules"

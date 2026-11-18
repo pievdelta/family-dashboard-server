@@ -1513,6 +1513,12 @@ function buildAlerts() {
   return alerts.slice(0, 30);
 }
 
+// The web dashboard: the TV dashboard in any browser on the home network.
+const WEB_DIR = fileURLToPath(new URL('./web/', import.meta.url));
+app.use('/web', express.static(WEB_DIR, { maxAge: '5m' }));
+app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
+app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').sendFile(path.join(WEB_DIR, 'manifest.webmanifest')));
+
 app.get('/api/dashboard', (req, res) => {
   try {
     const hostHeader = req.headers.host || `localhost:${PORT}`;
@@ -1551,9 +1557,15 @@ app.get('/api/dashboard', (req, res) => {
       refreshTransportBackgroundCache();
     }
 
-    const overviewMem = filterState.overviewMember || 'all';
+    // ?who= and ?wx= look at one person or city for this reply only, so the web
+    // dashboard can browse without changing what the TV shows
+    const peekWho = req.query.who ? String(req.query.who).toLowerCase() : '';
+    const peekWx = req.query.wx ? String(req.query.wx).toLowerCase() : '';
+    const overviewMem = peekWho || filterState.overviewMember || 'all';
+    const peekLoc = peekWx ? WEATHER_LOCS.find(l => String(l.id).toLowerCase() === peekWx) : null;
+    const wxLoc = peekLoc ? peekLoc.id : (filterState.selectedWxLoc || HOME_WX_ID);
     const calendarData = buildCalendarPayloadFromCache(cachedBountyData.users, overviewMem);
-    const weatherData = attachRadarTileUrls(hostHeader, filterState.selectedWxLoc || HOME_WX_ID);
+    const weatherData = attachRadarTileUrls(hostHeader, wxLoc);
     const homeWxData = attachRadarTileUrls(hostHeader, HOME_WX_ID);
     const now = new Date();
 
@@ -1633,7 +1645,8 @@ app.get('/api/dashboard', (req, res) => {
       serverTime: Math.floor(Date.now() / 1000),
       clockOnly: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       overviewMember: overviewMem,
-      selectedWxLoc: filterState.selectedWxLoc || HOME_WX_ID,
+      selectedWxLoc: wxLoc,
+      homeWxLoc: HOME_WX_ID,
       weatherLocations: WEATHER_LOCS,
       currentTime: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase() + '  |  ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       todayLabel: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase(),

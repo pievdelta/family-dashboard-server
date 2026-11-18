@@ -30,6 +30,13 @@ works on Intel and Apple silicon Macs.
 For a Mac that lives by the TV, turn on automatic login so the server comes back
 after a power cut.
 
+## Web dashboard
+
+Open `http://<server address>:3000/` in any browser on your home network: a tablet on
+the wall, a laptop, or a phone. It shows the same Today, calendar, weather, travel and
+chores screens as the TV, and kids can tap a chore to check it off. On a tablet, use
+**Add to Home Screen** so it opens full screen, and turn off auto-lock to keep it on.
+
 ## Updates
 
 The server checks GitHub once a day. When a new version is out, the setup page shows

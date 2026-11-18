@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Dashboard</title>
+<meta name="description" content="Your family's calendar, weather, travel and chores at a glance.">
+<meta name="theme-color" content="#0B1611">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Family Dashboard">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/web/icon-192.png">
+<link rel="apple-touch-icon" href="/web/icon-180.png">
+<link rel="stylesheet" href="/web/app.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="clock">
+      <div id="time" class="time">--:--</div>
+      <div id="date" class="date"></div>
+    </div>
+    <nav id="tabs" class="tabs" aria-label="Screens">
+      <button data-view="today">Today</button>
+      <button data-view="calendar">Calendar</button>
+      <button data-view="weather">Weather</button>
+      <button data-view="travel">Travel</button>
+      <button data-view="chores">Chores</button>
+    </nav>
+    <div class="top-right">
+      <button id="wxChip" class="wx-chip" aria-label="Weather"></button>
+      <button id="menuBtn" class="icon-btn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 7h16v2H4zm0 4h16v2H4zm0 4h16v2H4z"/></svg>
+      </button>
+    </div>
+  </header>
+  <div id="people" class="people" aria-label="Show"></div>
+  <div id="alert" class="alert" hidden></div>
+  <main id="view" class="view" tabindex="-1"></main>
+  <footer class="foot">
+    <span id="status" class="status"><i class="dot"></i><span>Connecting...</span></span>
+  </footer>
+</div>
+
+<div id="overlay" class="overlay" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<template id="menuTpl">
+  <div class="sheet" role="dialog" aria-label="Settings">
+    <h2>Settings</h2>
+    <label class="row"><span>Theme</span>
+      <select id="setTheme"><option value="auto">Match this device</option><option value="dark">Dark</option><option value="light">Light</option></select>
+    </label>
+    <label class="row"><span>Alert sounds on this screen</span><input id="setSound" type="checkbox"></label>
+    <label class="row"><span>Go back to Today after a few quiet minutes</span><input id="setIdle" type="checkbox"></label>
+    <div class="row"><span>Full screen</span><button id="setFull" class="btn">Go full screen</button></div>
+    <p class="muted small">Wall tablet tip: add this page to the home screen, then turn off auto-lock in the tablet's display settings so it stays on.</p>
+    <p class="muted small"><a href="/setup">Server setup page</a> · <span id="setVersion"></span></p>
+    <div class="actions"><button class="btn primary" data-close>Done</button></div>
+  </div>
+</template>
+
+<script src="/web/app.js"></script>
+</body>
+</html>

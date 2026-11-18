@@ -364,6 +364,7 @@ function setupPage({ state, devices, pairing, qr, serverUrl, ready, projectId, h
 
   const banner = extras.filter(x => x.startsWith('<p class="running"') || x.includes('id="firewall"'));
   parts.push(...extras.filter(x => !banner.includes(x)));
+  parts.push(step('web', null, 'Web dashboard', `<p>Open <a href="/" target="_blank"><code>${esc(serverUrl)}/</code></a> in any browser on your home network: a wall tablet, a laptop or a phone. On a tablet, add it to the home screen so it opens full screen like an app.</p>`));
   parts.push(step('roku', null, 'Roku', `<p>Open the Family Dashboard on your Roku (app 4.3 or newer). It finds this server by itself. If it doesn't, press <b>*</b> and set the home server address to <code>${esc(serverUrl)}</code>.</p>`));
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

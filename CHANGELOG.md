@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.4.0
+
+- New web dashboard: open the server's address (for example http://192.168.1.20:3000) in any browser on your home network. Today, calendar (agenda, week, month), weather with radar, travel with the full-screen bus map, and chores you can check off by tapping.
+- Works on wall tablets, laptops and phones, in dark or light, and can be added to a tablet's home screen to open full screen.
+- Browsing a person or a city on the web doesn't change what the TV shows.
+- Optional alert chimes and a return to Today after a few quiet minutes, for a screen on the wall.
+
 ## 5.3.0
 
 - Works with the renamed Android app, Family Dashboard 2.2 (app id `io.loux.familydashboard`). Phones on the old Chore Bounty Board app keep working.
