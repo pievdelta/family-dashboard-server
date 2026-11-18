@@ -124,7 +124,8 @@ const PACKAGE_INFO = JSON.parse(fs.readFileSync(new URL('./package.json', import
 const SERVER_VERSION = PACKAGE_INFO.version;
 // where updates come from: owner/repo on GitHub (FD_UPDATE_REPO overrides, 'off' turns checks off)
 const UPDATE_REPO = (process.env.FD_UPDATE_REPO || PACKAGE_INFO.familyDashboard?.updateRepo || '').trim();
-const APP_PACKAGE = (process.env.APP_PACKAGE || 'io.loux.bountyquest').trim();
+// the Android app's id (Family Dashboard; versions before 2.2 were io.loux.bountyquest)
+const APP_PACKAGE = (process.env.APP_PACKAGE || 'io.loux.familydashboard').trim();
 
 let db = null;
 let firebaseAuth = null;
@@ -611,6 +612,13 @@ let cachedBountyData = {
 function memberForUser(userId, userName) {
   const id = String(userId || '').toLowerCase();
   const name = String(userName || '').toLowerCase();
+  // the app can link a profile to a TV person explicitly (app 2.2 and later)
+  const user = liveData.users.find(u => String(u.id || '').toLowerCase() === id);
+  const linked = String(user?.dashboardMemberId || '').toLowerCase();
+  if (linked) {
+    const m = MEMBERS.find(x => x.id === linked);
+    if (m) return m;
+  }
   return MEMBERS.find(m => m.id === id || String(m.name || '').toLowerCase() === name)
     || MEMBERS.find(m => (m.matchKeywords || []).some(k => k && (id.includes(String(k).toLowerCase()) || name.includes(String(k).toLowerCase()))))
     || null;
@@ -723,7 +731,10 @@ async function refreshChoreBountyCache() {
 
 let cachedExpandedEvents = [];
 
-async function downloadAndParseIcs(url) {
+// how the calendar feeds did on their last load, for the app's health card
+const calendarHealth = { configured: false, ok: null, events: 0, loadedAt: null, error: null };
+
+async function downloadAndParseIcs(url, label = 'calendar') {
   if (!url) return {};
   try {
     const response = await fetch(url, {
@@ -732,7 +743,10 @@ async function downloadAndParseIcs(url) {
         'Accept': 'text/calendar,text/plain,*/*;q=0.8'
       }
     });
-    if (!response.ok) return {};
+    if (!response.ok) {
+      calendarHealth.error = `The ${label} link answered ${response.status}`;
+      return null;
+    }
     let rawIcsText = await response.text();
     rawIcsText = rawIcsText
       .replace(/TZID="?Eastern Standard Time"?/gi, 'TZID=America/New_York')
@@ -742,7 +756,8 @@ async function downloadAndParseIcs(url) {
       .replace(/TZID="?Pacific Standard Time"?/gi, 'TZID=America/Los_Angeles');
     return ical.sync.parseICS(rawIcsText);
   } catch (err) {
-    return {};
+    calendarHealth.error = `Couldn't load the ${label}: ${err.message}`;
+    return null;
   }
 }
 
@@ -802,10 +817,15 @@ async function refreshCalendarBackgroundCache() {
     }
     const workUrl = (process.env.WORK_ICAL_URL || '').trim();
 
-    const [familyData, workData] = await Promise.all([
-      downloadAndParseIcs(famUrl),
-      downloadAndParseIcs(workUrl)
+    calendarHealth.error = null;
+    calendarHealth.configured = Boolean(famUrl || workUrl);
+    const [familyRaw, workRaw] = await Promise.all([
+      downloadAndParseIcs(famUrl, 'family calendar'),
+      downloadAndParseIcs(workUrl, 'work calendar')
     ]);
+    const familyData = familyRaw || {};
+    const workData = workRaw || {};
+    calendarHealth.ok = calendarHealth.configured ? (familyRaw !== null && workRaw !== null) : null;
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -922,6 +942,8 @@ async function refreshCalendarBackgroundCache() {
     expandFeed(workData, 'work');
 
     cachedExpandedEvents = instances;
+    calendarHealth.events = instances.length;
+    if (calendarHealth.ok) calendarHealth.loadedAt = Date.now();
     if (instances.length !== lastCalendarCount) {
       console.log(`[Calendar] Ready: ${instances.length} active events cached in RAM.`);
       lastCalendarCount = instances.length;
@@ -1789,9 +1811,40 @@ async function startFamilyCloud() {
       serverVersion: SERVER_VERSION,
       requestRestart
     });
+    startHealthReports(root);
   } catch (e) {
     console.error(`[Firebase] ${e.message}`);
   }
+}
+
+// Every few minutes, tell the app how the server is doing: running, calendar
+// loaded, bus tracker connected, update waiting. A missed report means the
+// computer is off or asleep.
+function healthReport() {
+  const busProblem = !busHealth.configured ? null
+    : busHealth.credential === 'failed' ? 'the AlphaPortal sign-in stopped working'
+    : !busHealth.connected ? (busHealth.hint || busHealth.lastError || 'not connected')
+    : null;
+  return {
+    version: SERVER_VERSION,
+    seenAt: Date.now(),
+    calendar: {
+      ok: calendarHealth.configured ? calendarHealth.ok : null,
+      events: calendarHealth.events,
+      loadedAt: calendarHealth.loadedAt,
+      error: calendarHealth.error
+    },
+    bus: { configured: busHealth.configured, ok: busHealth.configured ? !busProblem : null, problem: busProblem },
+    update: { available: updater.available() ? updater.status.latest.version : null }
+  };
+}
+
+function startHealthReports(root) {
+  const ref = root.collection('config').doc('dashboard');
+  const send = () => ref.set({ server: healthReport() }, { merge: true })
+    .catch(e => console.error(`[Health] Couldn't report to the app: ${e.message}`));
+  setTimeout(send, 45000);              // after the calendar and bus have had a chance to load
+  setInterval(send, 5 * 60 * 1000).unref?.();
 }
 startFamilyCloud();
 updater.start();

@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.3.0
+
+- Works with the renamed Android app, Family Dashboard 2.2 (app id `io.loux.familydashboard`). Phones on the old Chore Bounty Board app keep working.
+- One color per person: a chore profile linked to a person on the TV uses that person's color everywhere, and the app can make the link explicitly.
+- The app shows how the server is doing: running, calendar loaded, bus tracker connected, update available. The server reports every 5 minutes.
+
 ## 5.2.1
 
 - The Mac installer now lets phones and the TV through the macOS firewall. Before, a background server never got the "allow incoming connections?" question, so pairing couldn't reach it.

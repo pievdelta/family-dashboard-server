@@ -110,8 +110,10 @@ export function setupPairing(app, ctx) {
   } = ctx;
   const devicesRef = db ? db.collection('households').doc(householdId).collection('devices') : null;
 
+  // a saved config for a different app id (the app was renamed in 2.2) is looked up again
+  const saved = loadAppConfig();
   const state = {
-    appConfig: loadAppConfig(),
+    appConfig: saved && (!saved.packageName || saved.packageName === appPackage) ? saved : null,
     appConfigError: null,
     authOk: null,
     authError: null,
