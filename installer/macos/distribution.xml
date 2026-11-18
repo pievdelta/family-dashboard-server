@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>Family Dashboard Server __VERSION__</title>
+  <organization>com.familydashboard</organization>
+  <welcome file="welcome.html" mime-type="text/html"/>
+  <license file="LICENSE.txt" mime-type="text/plain"/>
+  <conclusion file="conclusion.html" mime-type="text/html"/>
+  <options customize="never" require-scripts="true" hostArchitectures="x86_64,arm64"/>
+  <domains enable_localSystem="true"/>
+  <volume-check>
+    <allowed-os-versions>
+      <os-version min="13.5"/>
+    </allowed-os-versions>
+  </volume-check>
+  <choices-outline>
+    <line choice="default"/>
+  </choices-outline>
+  <choice id="default" title="Family Dashboard Server">
+    <pkg-ref id="com.familydashboard.server"/>
+  </choice>
+  <pkg-ref id="com.familydashboard.server" version="__VERSION__" onConclusion="none">component.pkg</pkg-ref>
+</installer-gui-script>

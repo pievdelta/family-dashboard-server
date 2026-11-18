@@ -1,0 +1,82 @@
+#!/bin/bash
+# Installs Family Dashboard Server for the person logged in:
+#   ~/Library/Application Support/Family Dashboard/          program
+#   ~/Library/Application Support/Family Dashboard/Settings/ settings, keys, log
+#   ~/Library/LaunchAgents/com.familydashboard.server.plist  starts it at login
+# then opens the setup page. Settings from an earlier install are kept.
+set -u
+SRC="/Library/Application Support/Family Dashboard Installer"
+LABEL="com.familydashboard.server"
+
+USER_NAME=$(stat -f%Su /dev/console)
+if [ -z "$USER_NAME" ] || [ "$USER_NAME" = "root" ] || [ "$USER_NAME" = "loginwindow" ]; then
+  echo "Family Dashboard: log in to the account that should run the server, then install again."
+  exit 1
+fi
+USER_UID=$(id -u "$USER_NAME")
+USER_GROUP=$(id -gn "$USER_NAME")
+USER_HOME=$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory | awk '{print $2}')
+APP_HOME="$USER_HOME/Library/Application Support/Family Dashboard"
+DATA="$APP_HOME/Settings"
+VERSION=$(cat "$SRC/VERSION")
+NODE="$APP_HOME/runtime/bin/node"
+log() { echo "Family Dashboard: $*"; }
+
+mkdir -p "$APP_HOME/runtime/bin" "$APP_HOME/versions" "$DATA/logs"
+
+# the bundled Node
+cp "$SRC/node" "$NODE.new" && chmod 755 "$NODE.new" && mv -f "$NODE.new" "$NODE"
+
+# this version's code
+if [ ! -f "$APP_HOME/versions/$VERSION/server.js" ]; then
+  T=$(mktemp -d)
+  tar -xzf "$SRC/bundle.tar.gz" -C "$T"
+  rm -rf "$APP_HOME/versions/$VERSION"
+  mv "$T/family-dashboard-server-$VERSION" "$APP_HOME/versions/$VERSION"
+  rm -rf "$T"
+fi
+cp "$APP_HOME/versions/$VERSION/launcher.js" "$APP_HOME/launcher.js"
+echo '{ "type": "module" }' > "$APP_HOME/package.json"
+cp "$SRC/uninstall.command" "$APP_HOME/Uninstall Family Dashboard.command"
+chmod 755 "$APP_HOME/Uninstall Family Dashboard.command"
+
+# run the installed version; keep the one before it to fall back on
+"$NODE" -e '
+  const fs = require("fs"), path = require("path");
+  const [home, v] = process.argv.slice(1);
+  const file = path.join(home, "current.json");
+  let s = {}; try { s = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) {}
+  const prev = s.version && s.version !== v && fs.existsSync(path.join(home, "versions", s.version, "server.js")) ? s.version : (s.previous || "");
+  const out = { version: v, previous: prev === v ? "" : prev, pending: Boolean(prev && prev !== v), startedTries: 0, bad: (s.bad || []).filter(b => b !== v) };
+  fs.writeFileSync(file, JSON.stringify(out, null, 2) + "\n");
+' "$APP_HOME" "$VERSION"
+
+# a starting config.txt (the setup page and the app fill in the rest)
+if [ ! -f "$DATA/config.txt" ]; then
+  cp "$APP_HOME/versions/$VERSION/config.example.txt" "$DATA/config.txt"
+  chmod 600 "$DATA/config.txt"
+fi
+
+chown -R "$USER_NAME:$USER_GROUP" "$APP_HOME"
+
+# start at login, and now
+AGENTS="$USER_HOME/Library/LaunchAgents"
+PLIST="$AGENTS/$LABEL.plist"
+mkdir -p "$AGENTS"
+sed -e "s#__HOME__#$APP_HOME#g" -e "s#__DATA__#$DATA#g" "$SRC/$LABEL.plist" > "$PLIST"
+chown "$USER_NAME:$USER_GROUP" "$AGENTS" "$PLIST"
+chmod 644 "$PLIST"
+launchctl bootout "gui/$USER_UID/$LABEL" 2>/dev/null || true
+launchctl bootstrap "gui/$USER_UID" "$PLIST" || log "couldn't start the server: $?"
+
+PORT=$(sed -n 's/^PORT=\([0-9][0-9]*\).*/\1/p' "$DATA/config.txt" | head -1)
+PORT=${PORT:-3000}
+for i in $(seq 1 40); do
+  curl -s -o /dev/null "http://localhost:$PORT/setup" && break
+  sleep 1
+done
+launchctl asuser "$USER_UID" sudo -u "$USER_NAME" open "http://localhost:$PORT/setup" || true
+
+rm -rf "$SRC"
+log "installed $VERSION for $USER_NAME"
+exit 0

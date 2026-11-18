@@ -1,0 +1,94 @@
+name: Release
+
+# Push a tag like v5.2.0 (matching package.json) to build and publish:
+#   family-dashboard-server-<version>.tar.gz   what installed servers update from
+#   Family-Dashboard-Server-<version>.pkg      the Mac installer
+#   SHA256SUMS                                 checksums the updater verifies
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  NODE_MAJOR: 24
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_MAJOR }}
+          cache: npm
+      - id: v
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$VERSION" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} doesn't match package.json version $VERSION"; exit 1
+          fi
+          if grep -q '"OWNER/' package.json; then
+            echo "::error::Set familyDashboard.updateRepo in package.json to this repo (owner/name)"; exit 1
+          fi
+      - run: npm ci
+      - run: npm test
+      - run: |
+          rm -rf node_modules
+          npm ci --omit=dev
+          bash scripts/make-bundle.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: dist/family-dashboard-server-*.tar.gz
+
+  mac-pkg:
+    needs: bundle
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_MAJOR }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle
+          path: dist
+      - name: Build the installer
+        env:
+          PKG_SIGN_IDENTITY: ${{ secrets.PKG_SIGN_IDENTITY }}
+          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+        run: bash installer/macos/build-pkg.sh dist/family-dashboard-server-${{ needs.bundle.outputs.version }}.tar.gz "$NODE_MAJOR"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg
+          path: dist/*.pkg
+
+  publish:
+    needs: [bundle, mac-pkg]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and release notes
+        run: |
+          VERSION=${{ needs.bundle.outputs.version }}
+          cd dist && sha256sum *.tar.gz *.pkg > SHA256SUMS && cat SHA256SUMS && cd ..
+          # this version's section of CHANGELOG.md
+          awk -v v="$VERSION" '$0 ~ "^## "v"( |$)" {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Family Dashboard Server $VERSION" > notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${{ needs.bundle.outputs.version }}
+          gh release create "v$VERSION" dist/*.tar.gz dist/*.pkg dist/SHA256SUMS \
+            --title "Family Dashboard Server $VERSION" --notes-file notes.md

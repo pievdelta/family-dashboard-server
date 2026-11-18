@@ -1,0 +1,32 @@
+{
+  "name": "family-dashboard-server",
+  "version": "5.2.0",
+  "description": "Home server for the Family Dashboard Roku app and the Chore Bounty Board Android app",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node launcher.js",
+    "test": "node test/run.mjs"
+  },
+  "familyDashboard": {
+    "updateRepo": "pievdelta/family-dashboard-server"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "alphaportal-mcp": "^1.3.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.3",
+    "firebase-admin": "^12.7.0",
+    "node-ical": "^0.18.0",
+    "qrcode": "^1.5.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pievdelta/family-dashboard-server.git"
+  }
+}

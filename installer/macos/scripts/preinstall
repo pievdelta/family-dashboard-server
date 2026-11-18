@@ -1,0 +1,7 @@
+#!/bin/bash
+# Stops a running copy so its files can be replaced. Settings are not touched.
+USER_NAME=$(stat -f%Su /dev/console)
+[ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ] || exit 0
+USER_UID=$(id -u "$USER_NAME")
+launchctl bootout "gui/$USER_UID/com.familydashboard.server" 2>/dev/null || true
+exit 0

@@ -1,0 +1,39 @@
+rules_version = '2';
+
+// Family Dashboard 5.0
+// The server publishes these rules for you from its setup page.
+//
+// Phones and tablets get in only by pairing with the family's server, which
+// gives each one its own sign-in. Removing a device (from the app or the setup
+// page) deletes its record here, and that locks it out at once.
+// The server itself uses the Admin key and is not limited by these rules.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function pairedTo(hid) {
+      return request.auth != null
+        && request.auth.token.householdId == hid
+        && exists(/databases/$(database)/documents/households/$(hid)/devices/$(request.auth.uid));
+    }
+
+    match /households/{hid} {
+      allow read, update: if pairedTo(hid);
+
+      // the list of paired devices: anyone in the family can see it and remove one
+      match /devices/{deviceId} {
+        allow read, delete: if pairedTo(hid);
+      }
+
+      // new keys and calendar links: devices can hand them in, nobody can read them back
+      match /private/{docId} {
+        allow create, update: if pairedTo(hid);
+      }
+
+      // people, chores, ledger, todos, config
+      match /{collection}/{docId} {
+        allow read, write: if pairedTo(hid) && collection != 'devices' && collection != 'private';
+      }
+    }
+  }
+}

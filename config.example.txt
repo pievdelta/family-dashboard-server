@@ -1,0 +1,23 @@
+# Copy this file to config.txt and fill in your own values.
+# config.txt holds secrets: never share it, and never put it in a zip you send to someone.
+
+# Port the dashboard server listens on. The Roku app expects 3000 unless you type another one in its Settings.
+PORT=3000
+
+# Family calendar: the "Secret address in iCal format" from Google Calendar settings.
+CALENDAR_ICAL_URL=
+
+# Optional work calendar (.ics link). Its events belong to the person in household.json with "sourceType": "work".
+WORK_ICAL_URL=
+
+# Current conditions come from OpenWeather (free key at openweathermap.org). Forecasts work without it.
+OPENWEATHER_KEY=
+
+# Optional chores. HOUSEHOLD_ID is your household's document id in Firestore.
+# Put the Firebase service-account .json next to server.js, or name it here.
+HOUSEHOLD_ID=
+FIREBASE_SERVICE_ACCOUNT=
+
+# Optional live school bus (AlphaPortal). See README: sign in at your AlphaPortal site and run
+# JSON.parse(localStorage.user).User.RefreshToken in the browser console. Renews itself while the server runs.
+ALPHAPORTAL_REFRESH_TOKEN=

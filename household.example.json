@@ -1,0 +1,128 @@
+{
+  "dashboardTitle": "FAMILY DASHBOARD",
+  "timezone": "America/Chicago",
+  "home": {
+    "address": "123 Example St, Springfield, IL 62701",
+    "lat": 39.7817,
+    "lon": -89.6501,
+    "geocodeHint": "Springfield, IL"
+  },
+  "weatherLocations": [
+    {
+      "id": "home",
+      "name": "Springfield, IL",
+      "lat": 39.7817,
+      "lon": -89.6501
+    },
+    {
+      "id": "grandma",
+      "name": "Tampa, FL",
+      "lat": 27.9506,
+      "lon": -82.4572
+    }
+  ],
+  "calendars": {
+    "familyName": "Family",
+    "familyColorHex": "0xEAB308FF",
+    "globalIgnoreKeywords": [
+      "canceled:",
+      "cancelled:"
+    ],
+    "workIgnoreKeywords": [
+      "focus time",
+      "hold",
+      "lunch"
+    ],
+    "sharedEventKeywords": [
+      "no school"
+    ]
+  },
+  "members": [
+    {
+      "id": "maya",
+      "name": "Maya",
+      "colorHex": "0xA855F7FF",
+      "role": "kid",
+      "hasBus": true,
+      "defaultMode": "BUS",
+      "alphaportalStudentId": 0,
+      "primaryDestination": {
+        "name": "Lincoln Elementary",
+        "address": "100 School Rd, Springfield, IL",
+        "lat": 39.79,
+        "lon": -89.66
+      },
+      "matchKeywords": [
+        "maya"
+      ]
+    },
+    {
+      "id": "leo",
+      "name": "Leo",
+      "colorHex": "0xF97316FF",
+      "role": "kid",
+      "hasBus": false,
+      "defaultMode": "CAR",
+      "scheduleNote": "Mon/Wed/Fri mornings",
+      "primaryDestination": {
+        "name": "Little Sprouts Preschool",
+        "address": "200 Garden Ave, Springfield, IL",
+        "lat": 39.77,
+        "lon": -89.64
+      },
+      "matchKeywords": [
+        "leo"
+      ]
+    },
+    {
+      "id": "dana",
+      "name": "Dana",
+      "colorHex": "0xEC4899FF",
+      "role": "parent",
+      "hasBus": false,
+      "defaultMode": "CAR",
+      "primaryDestination": {
+        "name": "City Gym",
+        "address": "300 Main St, Springfield, IL",
+        "lat": 39.8,
+        "lon": -89.65
+      },
+      "matchKeywords": [
+        "dana",
+        "yoga"
+      ],
+      "locationRules": [
+        {
+          "titleContains": "class",
+          "locationContains": "studio"
+        }
+      ]
+    },
+    {
+      "id": "sam",
+      "name": "Sam",
+      "colorHex": "0x38BDF8FF",
+      "role": "parent",
+      "sourceType": "work",
+      "hasBus": false,
+      "defaultMode": "CAR",
+      "scheduleNote": "Works from home most days",
+      "primaryDestination": {
+        "name": "Downtown office",
+        "address": "400 Capitol Ave, Springfield, IL",
+        "lat": 39.8,
+        "lon": -89.64
+      },
+      "matchKeywords": [
+        "sam"
+      ]
+    }
+  ],
+  "notifications": {
+    "eventLeadMinutes": 5,
+    "leaveAlerts": true,
+    "busNearFeet": 2000,
+    "quietStart": "21:30",
+    "quietEnd": "06:30"
+  }
+}

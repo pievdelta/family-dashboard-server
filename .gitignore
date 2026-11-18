@@ -1,0 +1,18 @@
+# personal and secret files: never share or commit these
+config.txt
+.env
+household.json
+calendar-filters.json
+*firebase-adminsdk*.json
+node_modules/
+firebase-app.json
+.cloud-sync.json
+*-firebase-adminsdk-key.json
+*.json.tmp
+
+# build output and local runs
+dist/
+logs/
+current.json
+db.json
+.DS_Store
