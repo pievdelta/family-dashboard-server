@@ -3,7 +3,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import express from 'express';
 import { homeOnly } from './pairing.js';
 
@@ -21,6 +21,25 @@ function onThisComputer(req) {
 function section(id, ok, title, body) {
   const mark = ok === true ? '<span class="ok">&#10003;</span>' : ok === false ? '<span class="todo">!</span>' : '<span class="wait">&#8230;</span>';
   return `<section id="${id}" class="${ok === true ? 'done' : ''}"><h2>${mark} ${title}</h2>${body}</section>`;
+}
+
+// macOS: is the firewall blocking this server's Node? (asked without admin rights)
+let fwCache = { at: 0, blocked: false };
+function firewallBlocks() {
+  if (process.platform !== 'darwin') return false;
+  if (Date.now() - fwCache.at < 60000) return fwCache.blocked;
+  const FW = '/usr/libexec/ApplicationFirewall/socketfilterfw';
+  let blocked = false;
+  try {
+    const on = spawnSync(FW, ['--getglobalstate'], { encoding: 'utf8', timeout: 3000 }).stdout || '';
+    if (/enabled/i.test(on) && !/disabled/i.test(on)) {
+      const app = spawnSync(FW, ['--getappblocked', process.execPath], { encoding: 'utf8', timeout: 3000 }).stdout || '';
+      const all = spawnSync(FW, ['--getblockall'], { encoding: 'utf8', timeout: 3000 }).stdout || '';
+      blocked = /is blocked|not.*permitted|not part of/i.test(app) || /enabled/i.test(all) && !/disabled/i.test(all);
+    }
+  } catch (e) {}
+  fwCache = { at: Date.now(), blocked };
+  return blocked;
 }
 
 function tail(file, lines) {
@@ -52,6 +71,37 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
       installError = e.message;
       log(`[Update] ${e.message}`);
       res.redirect('/setup#updates');
+    }
+  });
+
+  // settings files from an older copy (a folder run with npm start), chosen in the browser
+  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json'];
+  let importNote = null;
+  app.post('/setup/import', homeOnly, express.json({ limit: '2mb' }), (req, res) => {
+    const files = req.body?.files || {};
+    const saved = [];
+    const skipped = [];
+    try {
+      for (const [rawName, text] of Object.entries(files)) {
+        const name = path.basename(String(rawName));
+        const isKey = /firebase-adminsdk.*\.json$/i.test(name);
+        if ((!IMPORTABLE.includes(name) && !isKey) || typeof text !== 'string' || text.length > 1_000_000) { skipped.push(name); continue; }
+        if (name.endsWith('.json')) { try { JSON.parse(text); } catch (e) { throw new Error(`${name} is damaged`); } } // refuse a broken file rather than save it
+        if (name === 'config.txt' && !/^[A-Z0-9_]+=/m.test(text)) throw new Error('config.txt doesn\'t look like a settings file');
+        if (saved.some(f => f.name === name)) throw new Error(`${name} was chosen twice`);
+        saved.push({ name, text, mode: name === 'config.txt' || isKey ? 0o600 : 0o644 });
+      }
+      // everything checked out: now save
+      for (const f of saved) fs.writeFileSync(path.join(dataDir, f.name), f.text, { mode: f.mode });
+      saved.splice(0, saved.length, ...saved.map(f => f.name));
+      if (!saved.length) throw new Error(skipped.length ? `none of those are settings files (${skipped.join(', ')})` : 'no files were chosen');
+      // the app may have changed settings since: let the newest copy win on restart, as usual
+      importNote = `Brought in ${saved.join(', ')}${skipped.length ? `. Skipped ${skipped.join(', ')}` : ''}. Restarting to use them.`;
+      log(`[Setup] Imported ${saved.join(', ')} from an older copy.`);
+      res.json({ ok: true, message: importNote });
+      if (requestRestart) requestRestart();
+    } catch (e) {
+      res.status(400).json({ error: `Couldn't bring those in: ${e.message}` });
     }
   });
 
@@ -112,6 +162,31 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     if (process.env.FD_LAUNCHER === '1') tools += `<form method="post" action="/setup/restart" class="inline"><button class="quiet">Restart server</button></form>`;
     tools += `</div><p class="muted">Settings folder: <code>${esc(dataDir)}</code></p>`;
     if (updater.status.repo) tools += `<p class="muted">Free software under the AGPL-3.0. <a href="https://github.com/${esc(updater.status.repo)}" target="_blank">Source code</a></p>`;
+    tools += `<details${importNote ? ' open' : ''}><summary>Moving from an older copy you ran with npm start?</summary>
+      <p>Stop the old copy first (close its Terminal window). Then choose these files from its folder: <code>config.txt</code>, <code>household.json</code>, and if they're there <code>firebase-app.json</code>, <code>calendar-filters.json</code> and <code>.cloud-sync.json</code>.
+      Your Firebase key isn't needed again. Files starting with a dot are hidden: press <b>Cmd + Shift + .</b> in the file window to show them.</p>
+      <input type="file" id="importfiles" multiple><button type="button" id="importbtn">Bring them in</button>
+      <p id="importmsg" class="muted">${importNote ? esc(importNote) : ''}</p>
+      <script>
+        document.getElementById('importbtn').addEventListener('click', async () => {
+          const msg = document.getElementById('importmsg');
+          const files = {};
+          for (const f of document.getElementById('importfiles').files) files[f.name] = await f.text();
+          if (!Object.keys(files).length) { msg.textContent = 'Choose the files first.'; return; }
+          msg.textContent = 'Saving...';
+          const r = await fetch('/setup/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files }) });
+          const j = await r.json().catch(() => ({}));
+          msg.textContent = j.message || j.error || 'Something went wrong.';
+          if (r.ok) setTimeout(() => location.reload(), 9000);
+        });
+      </script></details>`;
+    if (firewallBlocks()) {
+      parts.unshift(section('firewall', false, 'The Mac\'s firewall is blocking phones and the TV', `<p>This page works on this Mac, but other devices can't reach the server. In Terminal, run:</p>
+<pre>sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add "${esc(process.execPath)}"
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp "${esc(process.execPath)}"</pre>
+<p class="muted">Or in System Settings &gt; Network &gt; Firewall &gt; Options, add <code>${esc(process.execPath)}</code> and set it to allow incoming connections. Then reload this page.</p>`));
+    }
+    parts.unshift(`<p class="running">&#9679; The server is running${process.env.FD_LAUNCHER === '1' && process.env.FD_HOME ? ' in the background on this Mac and starts by itself when you log in. There is nothing to keep open.' : '.'}</p>`);
     parts.push(section('tools', null, 'Server', tools));
     return parts;
   };

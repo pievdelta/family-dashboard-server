@@ -59,6 +59,14 @@ fi
 
 chown -R "$USER_NAME:$USER_GROUP" "$APP_HOME"
 
+# let phones and the TV reach the server: a background program never gets the
+# firewall's "allow incoming connections?" question, so it would stay blocked
+FW=/usr/libexec/ApplicationFirewall/socketfilterfw
+if [ -x "$FW" ]; then
+  "$FW" --add "$NODE" >/dev/null 2>&1 || true
+  "$FW" --unblockapp "$NODE" >/dev/null 2>&1 || true
+fi
+
 # start at login, and now
 AGENTS="$USER_HOME/Library/LaunchAgents"
 PLIST="$AGENTS/$LABEL.plist"

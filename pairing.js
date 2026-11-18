@@ -360,7 +360,8 @@ function setupPage({ state, devices, pairing, qr, serverUrl, ready, projectId, h
       : '<p class="muted">None yet.</p>'));
   }
 
-  parts.push(...extras);
+  const banner = extras.filter(x => x.startsWith('<p class="running"') || x.includes('id="firewall"'));
+  parts.push(...extras.filter(x => !banner.includes(x)));
   parts.push(step('roku', null, 'Roku', `<p>Open the Family Dashboard on your Roku (app 4.3 or newer). It finds this server by itself. If it doesn't, press <b>*</b> and set the home server address to <code>${esc(serverUrl)}</code>.</p>`));
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -384,12 +385,12 @@ function setupPage({ state, devices, pairing, qr, serverUrl, ready, projectId, h
   .pair { display:flex; gap:20px; align-items:center; flex-wrap:wrap; } .pair img { width:220px; height:220px; border-radius:12px; background:#fff; padding:6px; }
   .code { font-size:40px; font-weight:700; letter-spacing:4px; margin:4px 0; }
   .muted, small { color:var(--muted); } a { color:var(--green); } .err { color:var(--orange); font-weight:600; }
-  input[type=file] { margin: 4px 0 10px; } .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=file] { margin: 4px 0 10px; } .running { color:var(--green); font-weight:600; margin:6px 0 0; } summary { cursor:pointer; margin-top:10px; } .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   .notes { white-space:pre-wrap; font-size:14px; background:var(--bg); padding:12px; border-radius:10px; max-height:240px; overflow:auto; }
   ul.devices { list-style:none; padding:0; margin:0; } ul.devices li { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--line); gap:12px; }
   ul.devices li:first-child { border-top:0; } ul.devices small { display:block; }
 </style></head><body><main>
-<h1>Family Dashboard setup</h1><p class="muted">Server ${esc(version)}. This page only opens on your home network.</p>
+<h1>Family Dashboard setup</h1>${banner.join('')}<p class="muted">Server ${esc(version)}. This page only opens on your home network.</p>
 ${parts.join('\n')}
 </main></body></html>`;
 }

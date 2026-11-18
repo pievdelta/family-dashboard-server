@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.2.1
+
+- The Mac installer now lets phones and the TV through the macOS firewall. Before, a background server never got the "allow incoming connections?" question, so pairing couldn't reach it.
+- The setup page warns when the firewall is blocking the server and shows how to fix it.
+- The setup page says plainly that the server is running in the background, with nothing to keep open.
+- Moving from a copy you ran with npm start: choose its config.txt, household.json and other settings files on the setup page and the server brings them in.
+
 ## 5.2.0
 
 - New Mac installer: brings its own Node, runs in the background at login, and opens the setup page when it's done.
