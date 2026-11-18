@@ -77,9 +77,11 @@ export function createUpdater({ version, repo, home = process.env.FD_HOME, api =
     return msg;
   }
 
+  let retryTimer = null;
+
   async function getJson(url) {
     const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': `FamilyDashboard/${version}` } });
-    if (!res.ok) throw new Error(`GitHub said ${res.status}`);
+    if (!res.ok) throw new Error(res.status === 403 || res.status === 429 ? 'GitHub is limiting requests from this network right now' : `GitHub said ${res.status}`);
     return res.json();
   }
 
@@ -103,7 +105,11 @@ export function createUpdater({ version, repo, home = process.env.FD_HOME, api =
       status.error = null;
       if (status.latest && newer(v, version)) log(`[Update] Version ${v} is available. Open the setup page to install it.`);
     } catch (e) {
-      status.error = `Couldn't check for updates: ${e.message}`;
+      status.error = `Couldn't check for updates: ${e.message}. Trying again in an hour.`;
+      // GitHub limits checks without an account to 60 an hour per home address
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(check, 60 * 60 * 1000);
+      retryTimer.unref?.();
     }
     status.checkedAt = Date.now();
     return status;
