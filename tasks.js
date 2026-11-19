@@ -131,3 +131,22 @@ export function buildTaskEvents({ chores = [], todos = [], meals = [], users = [
 }
 
 const MEAL_NAMES = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+
+/**
+ * Keeps the family's Firebase small: planned meals go 3 days after their day,
+ * and checked-off grocery items 3 days after they were checked off.
+ */
+export async function tidyOldData(root, now = Date.now()) {
+  const DAY = 86400000;
+  const d = new Date(now - 3 * DAY);
+  const cutoffIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  let removed = 0;
+  const meals = await root.collection('meals').where('date', '<', cutoffIso).get();
+  for (const doc of meals.docs) { await doc.ref.delete(); removed++; }
+  const done = await root.collection('groceries').where('done', '==', true).get();
+  for (const doc of done.docs) {
+    const at = Number(doc.data()?.doneAt || 0);
+    if (at && at < now - 3 * DAY) { await doc.ref.delete(); removed++; }
+  }
+  return removed;
+}

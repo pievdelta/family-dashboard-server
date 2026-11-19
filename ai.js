@@ -88,9 +88,17 @@ export async function askAI(settings, system, prompt) {
 const clip = (s, n) => String(s ?? '').trim().slice(0, n);
 const strList = (v, n = 20, len = 80) => (Array.isArray(v) ? v : []).map(x => clip(x, len)).filter(Boolean).slice(0, n);
 
-export function mealPrompt({ kids, groceries, note, today, planned = [] }) {
+// How adventurous to be, chosen in the app.
+const VIBES = {
+  favorites: 'Stick to what the kids already eat: build every dinner around their listed foods.',
+  stretch: 'Mostly familiar dinners, each with one small new thing. Every kid should still find something they eat on the plate.',
+  adventurous: 'Try dishes the family probably hasn\'t made before. The kids\' foods are not limits tonight; for each dinner, say in "why" which of their foods could go on the side.'
+};
+
+export function mealPrompt({ kids, groceries, note, today, planned = [], minutes = null, vibe = 'favorites' }) {
+  const v = VIBES[vibe] ? vibe : 'favorites';
   const system = 'You suggest easy family dinners. Be practical: weeknight-friendly, common ingredients, nothing fancy unless asked. ' +
-    'Respect what each kid will eat. Reply with JSON only.';
+    (v === 'adventurous' ? 'The family wants something new tonight. ' : 'Respect what each kid will eat. ') + 'Reply with JSON only.';
   const lines = [
     `Today is ${today}.`,
     kids.length ? 'The kids:' : '',
@@ -99,6 +107,8 @@ export function mealPrompt({ kids, groceries, note, today, planned = [] }) {
     groceries.recent.length ? `Recently bought: ${groceries.recent.join(', ')}.` : '',
     groceries.pantry?.length ? `Pantry staples they always have: ${groceries.pantry.join(', ')}.` : '',
     planned.length ? `Already planned (don't repeat these): ${planned.join('; ')}.` : '',
+    minutes ? `Time to cook: ${minutes} minutes at most, including prep.` : '',
+    VIBES[v],
     note ? `The parent adds: ${note}` : '',
     '',
     'Suggest 4 dinners. For each, list the main ingredients it needs. Prefer dinners that use what they already have (recently bought and pantry staples). Mark ingredients the family probably needs to buy (not on the list, not recently bought, not a pantry staple) in "toBuy".',
@@ -189,7 +199,13 @@ export function startAI({ root, settings = aiSettings(), context, ask = askAI, l
       const ctx = await context(req);
       let result;
       if (req.type === 'meals') {
-        const p = mealPrompt({ ...ctx, note: clip(req.input?.note, 500) });
+        const minutes = Number(req.input?.minutes);
+        const p = mealPrompt({
+          ...ctx,
+          note: clip(req.input?.note, 500),
+          minutes: Number.isFinite(minutes) && minutes >= 5 && minutes <= 240 ? Math.round(minutes) : null,
+          vibe: String(req.input?.vibe || 'favorites').toLowerCase()
+        });
         result = cleanMeals(await ask(settings, p.system, p.prompt));
       } else if (req.type === 'braindump') {
         const p = brainDumpPrompt({ ...ctx, kids: ctx.kids.map(k => k.name), text: req.input?.text });

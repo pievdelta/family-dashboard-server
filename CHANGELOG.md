@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.8.0
+
+- Meal ideas follow the app's choices (app 2.6.1): how long you have to cook, and how adventurous to be. "Adventurous" suggests new dishes and offers each kid's foods as a side instead of a limit. Your own note is never cut short by them.
+- Tidier Firebase: planned meals are cleared 3 days after their day, and checked-off grocery items 3 days after they were checked off.
+
 ## 5.7.0
 
 - **Meal plan** (app 2.6): plan breakfast, lunch or dinner for a day and it shows on the TV and web calendar, like "Dinner: Tacos".

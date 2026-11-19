@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { buildTaskEvents } from './tasks.js';
+import { buildTaskEvents, tidyOldData } from './tasks.js';
 import { buildFullMap } from './map-full.js';
 import { startDiscovery } from './discovery.js';
 import { setupPairing, isHomeNetwork, lanAddress } from './pairing.js';
@@ -1827,6 +1827,7 @@ async function startFamilyCloud() {
     });
     startHealthReports(root);
     startAgendaSync(root);
+    startTidy(root);
     const fakeAI = process.env.FD_FAKE_AI ? (await import('./test/fake-ai.mjs')).fakeAsk : undefined;
     aiStatus = startAI({ root, context: (req) => aiContext(root, req), ...(fakeAI ? { ask: fakeAI, settings: { configured: true, provider: 'gemini', providerName: 'Test AI', model: 'fake', key: 'x' } } : {}) });
   } catch (e) {
@@ -1916,6 +1917,17 @@ function buildAgenda() {
     add(e.isoDate, e.dateLabel || e.shortDate || e.isoDate, e);
   }
   return days;
+}
+
+function startTidy(root) {
+  const run = async () => {
+    try {
+      const n = await tidyOldData(root);
+      if (n) console.log(`[Tidy] Cleared ${n} old meal${n === 1 ? '' : 's'} and grocery items.`);
+    } catch (e) { console.log(`[Tidy] ${e.message}`); }
+  };
+  setTimeout(run, 2 * 60000);
+  setInterval(run, 6 * 3600000).unref?.();
 }
 
 function startAgendaSync(root) {

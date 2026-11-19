@@ -66,6 +66,37 @@ await test('planned meals join the calendar; pantry goes to the meal AI', async 
   assert.match(p.prompt, /don't repeat these\): 2026-11-19: Tacos/);
 });
 
+await test('meal choices reach the prompt; old meals and groceries are tidied', async () => {
+  const { mealPrompt } = await import('../ai.js');
+  const { tidyOldData } = await import('../tasks.js');
+  const base = { kids: [{ name: 'A', safeFoods: 'pasta' }], groceries: { toBuy: [], recent: [] }, today: '2026-11-19' };
+  const fav = mealPrompt({ ...base, minutes: 30, vibe: 'favorites', note: 'chicken in the freezer' });
+  assert.match(fav.prompt, /30 minutes at most/); assert.match(fav.prompt, /build every dinner around/); assert.match(fav.prompt, /chicken in the freezer/);
+  assert.match(fav.system, /Respect what each kid will eat/);
+  const adv = mealPrompt({ ...base, vibe: 'adventurous' });
+  assert.match(adv.system, /something new/); assert.doesNotMatch(adv.system, /Respect/);
+  assert.match(mealPrompt({ ...base, vibe: 'nonsense' }).prompt, /build every dinner around/);
+
+  const dbFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'fd-tidy-')), 'db.json');
+  const now = new Date('2026-11-19T15:00:00Z').getTime();
+  const DAY = 86400000;
+  fs.writeFileSync(dbFile, JSON.stringify({
+    'households/h/meals/old': { date: '2026-11-10', name: 'Old' },
+    'households/h/meals/recent': { date: '2026-11-17', name: 'Recent' },
+    'households/h/groceries/g1': { name: 'milk', done: true, doneAt: now - 5 * DAY },
+    'households/h/groceries/g2': { name: 'eggs', done: true, doneAt: now - DAY },
+    'households/h/groceries/g3': { name: 'bread', done: false }
+  }));
+  process.env.FAKE_FIREBASE_DB = dbFile;
+  const { firestore } = await import('./fake-firebase.mjs');
+  const db = firestore();
+  const root = db.collection('households').doc('h');
+  assert.equal(await tidyOldData(root, now), 2);
+  const left = (await root.collection('groceries').get()).docs.map(d => d.id).sort();
+  assert.deepEqual(left, ['g2', 'g3']);
+  assert.deepEqual((await root.collection('meals').get()).docs.map(d => d.id), ['recent']);
+});
+
 await test('server starts and answers', async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-test-'));
   fs.copyFileSync(path.join(root, 'household.example.json'), path.join(data, 'household.json'));
