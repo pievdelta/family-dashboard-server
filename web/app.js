@@ -108,7 +108,7 @@
       const age = Date.now() - state.lastOk;
       if (state.fails >= 2) { text = `Offline · showing what we had ${ago(state.lastOk)}`; cls += ' bad'; }
       else if (age > 75000) { text = `Updated ${ago(state.lastOk)}`; cls += ' warn'; }
-      else { text = 'Up to date'; cls += ' ok'; }
+      else { text = state.data?.demo ? 'Demo family · nothing here is real' : 'Up to date'; cls += ' ok'; }
     } else if (state.fails) { text = "Can't reach the family server"; cls += ' bad'; }
     el.className = cls;
     el.lastElementChild.textContent = text;

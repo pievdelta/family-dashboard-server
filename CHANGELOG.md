@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.8.1
+
+- Web dashboard demo: open the dashboard with `?demo=1` (for example http://192.168.1.20:3000/?demo=1) to see a made-up family. The Android TV and Fire TV app uses the same demo when it can't find a server.
+
 ## 5.8.0
 
 - Meal ideas follow the app's choices (app 2.6.1): how long you have to cook, and how adventurous to be. "Adventurous" suggests new dishes and offers each kid's foods as a side instead of a limit. Your own note is never cut short by them.
