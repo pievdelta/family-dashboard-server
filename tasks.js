@@ -6,6 +6,7 @@
 //     (for example "Mon-Fri 7:15 AM: make your bed")
 //   - a parent to-do with a due date, on that day; overdue ones on today.
 //     Private to-dos never leave the phone of the parent who wrote them.
+//   - a planned meal ("Dinner: Tacos"), on its day, today and later
 // Finished items drop off. Chores waiting for a parent's OK stay, marked.
 
 const DAY = 86400000;
@@ -23,7 +24,7 @@ function parseTime(text) {
  * Builds calendar-shaped items. `fmt` holds the server's time-zone helpers so
  * these line up exactly with events from the calendar feeds.
  */
-export function buildTaskEvents({ chores = [], todos = [], users = [], memberForUser, fmt, now = new Date(), routineDays = 7 }) {
+export function buildTaskEvents({ chores = [], todos = [], meals = [], users = [], memberForUser, fmt, now = new Date(), routineDays = 7 }) {
   const { toNyIsoDate, getNyHourMinute, wkFmt, monShortFmt, monFullFmt, dateLblFmt, timeLblFmt } = fmt;
   const out = [];
   const todayIso = toNyIsoDate(now);
@@ -120,5 +121,13 @@ export function buildTaskEvents({ chores = [], todos = [], users = [], memberFor
       overdue
     }));
   }
+  for (const m of meals) {
+    const iso = String(m.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso) || iso < todayIso || !m.name) continue;
+    const which = MEAL_NAMES[String(m.meal || 'dinner').toLowerCase()] || 'Dinner';
+    out.push(item({ iso, time: parseTime(m.time), title: `${which}: ${m.name}`, kind: 'meal', id: m.id, memberKey: null }));
+  }
   return out;
 }
+
+const MEAL_NAMES = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };

@@ -88,7 +88,7 @@ export async function askAI(settings, system, prompt) {
 const clip = (s, n) => String(s ?? '').trim().slice(0, n);
 const strList = (v, n = 20, len = 80) => (Array.isArray(v) ? v : []).map(x => clip(x, len)).filter(Boolean).slice(0, n);
 
-export function mealPrompt({ kids, groceries, note, today }) {
+export function mealPrompt({ kids, groceries, note, today, planned = [] }) {
   const system = 'You suggest easy family dinners. Be practical: weeknight-friendly, common ingredients, nothing fancy unless asked. ' +
     'Respect what each kid will eat. Reply with JSON only.';
   const lines = [
@@ -97,9 +97,11 @@ export function mealPrompt({ kids, groceries, note, today }) {
     ...kids.map(k => `- ${k.name}${k.safeFoods ? `: will reliably eat ${k.safeFoods}` : ''}${k.interests ? ` (into ${k.interests})` : ''}`),
     groceries.toBuy.length ? `Already on the grocery list: ${groceries.toBuy.join(', ')}.` : '',
     groceries.recent.length ? `Recently bought: ${groceries.recent.join(', ')}.` : '',
+    groceries.pantry?.length ? `Pantry staples they always have: ${groceries.pantry.join(', ')}.` : '',
+    planned.length ? `Already planned (don't repeat these): ${planned.join('; ')}.` : '',
     note ? `The parent adds: ${note}` : '',
     '',
-    'Suggest 4 dinners. For each, list the main ingredients it needs. Mark ingredients the family probably needs to buy (not on the list and not recently bought) in "toBuy".',
+    'Suggest 4 dinners. For each, list the main ingredients it needs. Prefer dinners that use what they already have (recently bought and pantry staples). Mark ingredients the family probably needs to buy (not on the list, not recently bought, not a pantry staple) in "toBuy".',
     'JSON shape: {"ideas":[{"name":"","why":"one short sentence, mention which kid it works for","minutes":30,"ingredients":[""],"toBuy":[""]}]}'
   ];
   return { system, prompt: lines.filter(l => l !== '').join('\n') };

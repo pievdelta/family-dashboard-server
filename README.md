@@ -41,8 +41,14 @@ chores screens as the TV, and kids can tap a chore to check it off. On a tablet,
 
 Add your own key from Google AI Studio (Gemini, with a free tier), Anthropic (Claude) or
 OpenAI on the setup page, under **AI**. The phone app then offers **Meal ideas** on the
-grocery list and a **Brain dump** on its Today screen. Requests go from your server straight
-to the company you chose; nothing is saved until you confirm it.
+grocery list and meal plan (using your pantry staples and what you just bought) and a
+**Brain dump** on its Today screen. Requests go from your server straight to the company
+you chose; nothing is saved until you confirm it.
+
+## Android TV
+
+The Family Dashboard Android app also runs on Android TV. On the TV it finds this server
+on your Wi-Fi by itself, like the Roku app, and shows the web dashboard full screen.
 
 ## Updates
 

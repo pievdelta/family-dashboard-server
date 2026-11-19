@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.7.0
+
+- **Meal plan** (app 2.6): plan breakfast, lunch or dinner for a day and it shows on the TV and web calendar, like "Dinner: Tacos".
+- **Pantry staples** (app 2.6): the things you always have. Meal ideas now count on your staples and what you just bought, and skip dinners already on the plan.
+- Web dashboard: on a TV (the Android TV app), the remote's left and right move between screens and up and down scroll.
+
 ## 5.6.0
 
 - AI with your own key (optional): Gemini, Claude or OpenAI. Add it on the setup page or in the app's TV settings. An existing `GEMINI_API_KEY` line in config.txt is used automatically.

@@ -42,6 +42,30 @@ await test('AI replies are read and cleaned', async () => {
   assert.equal(aiSettings({}).configured, false);
 });
 
+await test('planned meals join the calendar; pantry goes to the meal AI', async () => {
+  const { buildTaskEvents } = await import('../tasks.js');
+  const { mealPrompt } = await import('../ai.js');
+  const tz = 'America/New_York';
+  const f = (o) => new Intl.DateTimeFormat('en-US', { timeZone: tz, ...o });
+  const fmt = {
+    toNyIsoDate: (d) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d),
+    getNyHourMinute: (d) => { const p = f({ hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(d); return { h: Number(p.find(x => x.type === 'hour').value), m: Number(p.find(x => x.type === 'minute').value) }; },
+    wkFmt: f({ weekday: 'short' }), monShortFmt: f({ month: 'short' }), monFullFmt: f({ month: 'long' }),
+    dateLblFmt: f({ weekday: 'long', month: 'short', day: 'numeric' }), timeLblFmt: f({ hour: 'numeric', minute: '2-digit' })
+  };
+  const now = new Date('2026-11-19T15:00:00Z');
+  const ev = buildTaskEvents({ meals: [
+    { id: 'a', date: '2026-11-19', name: 'Tacos' },
+    { id: 'b', date: '2026-11-20', name: 'Soup', meal: 'lunch', time: '12:30' },
+    { id: 'c', date: '2026-11-01', name: 'Old' }
+  ], memberForUser: () => null, fmt, now });
+  assert.deepEqual(ev.map(e => e.title), ['Dinner: Tacos', 'Lunch: Soup']);
+  assert.equal(ev[0].isAllDay, true); assert.equal(ev[1].timeLabel, '12:30 PM'); assert.equal(ev[0].kind, 'meal');
+  const p = mealPrompt({ kids: [], groceries: { toBuy: [], recent: ['chicken'], pantry: ['rice', 'pasta'] }, planned: ['2026-11-19: Tacos'], today: '2026-11-19' });
+  assert.match(p.prompt, /Pantry staples they always have: rice, pasta/);
+  assert.match(p.prompt, /don't repeat these\): 2026-11-19: Tacos/);
+});
+
 await test('server starts and answers', async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-test-'));
   fs.copyFileSync(path.join(root, 'household.example.json'), path.join(data, 'household.json'));

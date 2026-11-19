@@ -635,13 +635,13 @@ function earnedLabelFor(points, minutes) {
 // Live copies of the family's Firebase data. Listeners keep them current, so a
 // change in the app reaches the TV in a second or two and Firebase only counts
 // reads when something actually changes.
-const liveData = { chores: [], users: [], ledger: [], todos: [], loaded: false };
+const liveData = { chores: [], users: [], ledger: [], todos: [], meals: [], loaded: false };
 
 function startLiveData() {
   if (!db) return;
   const root = db.collection('households').doc(householdId);
   const pending = new Set(['chores', 'users', 'ledger', 'todos']);
-  for (const name of ['chores', 'users', 'ledger', 'todos']) {
+  for (const name of ['chores', 'users', 'ledger', 'todos', 'meals']) {
     root.collection(name).onSnapshot((snap) => {
       liveData[name] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       pending.delete(name);
@@ -1026,7 +1026,7 @@ function buildCalendarPayloadFromCache(users = [], overviewMem = 'all') {
 
   // chores and to-dos with a day (and maybe a time) join the calendar
   const taskEvents = db ? buildTaskEvents({
-    chores: liveData.chores, todos: liveData.todos, users: liveData.users, memberForUser, fmt: TASK_FMT, now
+    chores: liveData.chores, todos: liveData.todos, meals: liveData.meals, users: liveData.users, memberForUser, fmt: TASK_FMT, now
   }) : [];
 
   for (const rawEv of [...cachedExpandedEvents, ...taskEvents]) {
@@ -1853,10 +1853,18 @@ async function aiContext(root, req) {
       else if ((g.doneAt || 0) > weekAgo) groceries.recent.push(g.name);
     }
   } catch (e) { /* the list is optional */ }
+  // staples the family always keeps on hand
+  const pantry = [];
+  try {
+    const snap = await root.collection('pantry').get();
+    for (const d of snap.docs) { const n = String(d.data()?.name || '').trim(); if (n) pantry.push(n); }
+  } catch (e) { /* optional too */ }
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
-  return { kids, parents, me, groceries, today, weekday };
+  // dinners already planned, so ideas don't repeat them
+  const planned = liveData.meals.filter(m => m.name && String(m.date || '') >= today).map(m => `${m.date}: ${m.name}`).slice(0, 14);
+  return { kids, parents, me, groceries: { ...groceries, pantry }, planned, today, weekday };
 }
 
 // Every few minutes, tell the app how the server is doing: running, calendar

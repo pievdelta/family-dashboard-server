@@ -1,9 +1,9 @@
 # Privacy Policy
 
-*Effective November 18, 2026 (AI section added the same day)*
+*Effective November 19, 2026*
 
 This policy covers the **Family Dashboard** app for Roku, the **Family Dashboard Server**,
-and the **Family Dashboard** app for Android (first released as Chore Bounty Board) (together, "Family Dashboard").
+and the **Family Dashboard** app for Android and Android TV (first released as Chore Bounty Board) (together, "Family Dashboard").
 
 ## The short version
 
@@ -30,15 +30,16 @@ computer. To build the dashboard, it contacts these services directly from your 
 | AlphaPortal (only if you turn on bus tracking) | Your school bus location | Your AlphaPortal sign-in token |
 | Firebase, run by Google (only if you connect it) | Chores, to-dos and settings for the phone app | Your family's chore data, in your own project |
 | GitHub | Check once a day for new versions | Your network address and the server's version number |
-| The AI company you choose: Google (Gemini), Anthropic (Claude) or OpenAI (only if you add your own key) | Meal ideas and sorting a brain dump, only when you ask | What you type, family first names, the foods and interests you entered for your kids, and the grocery list |
+| The AI company you choose: Google (Gemini), Anthropic (Claude) or OpenAI (only if you add your own key) | Meal ideas and sorting a brain dump, only when you ask | What you type, family first names, the foods and interests you entered for your kids, the grocery list, pantry staples and planned meals |
 
 Each service handles that information under its own privacy policy. We do not operate any of
 them and do not receive what they receive.
 
-**Android app.** Stores chores, rewards, to-dos, the grocery list and family member names in the
+**Android app.** Stores chores, rewards, to-dos, the grocery list, pantry staples, the meal plan and family member names in the
 Firebase project you connected to your server. Private to-dos stay with the parent who wrote
 them. The app pairs with your server once on your home network and then talks directly to
-your Firebase project.
+your Firebase project. On an Android TV, the app doesn't pair or sign in: like the Roku
+app, it finds the server on your home network and shows its dashboard.
 
 ## AI features
 

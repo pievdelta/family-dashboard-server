@@ -164,7 +164,7 @@
 
   function evRow(e, now) {
     const isNow = !e.isAllDay && e.startMs <= now && (e.endMs || e.startMs + 1800000) > now;
-    const place = e.location || (e.kind === 'chore' ? 'Chore' : e.kind === 'todo' ? 'To-do' : '');
+    const place = e.location || (e.kind === 'chore' ? 'Chore' : e.kind === 'todo' ? 'To-do' : e.kind === 'meal' ? 'Meal plan' : '');
     return `<div class="ev${isNow ? ' now' : ''}">
       <span class="t">${e.isAllDay ? '<span class="allday">All day</span>' : esc(niceTime(e.timeLabel))}</span>
       <i class="d" style="background:${css(e.colorHex)}"></i>
@@ -547,9 +547,26 @@
     if (t.dataset.open === 'map') return openFullMap(busRider());
     if (t.dataset.go) return go(t.dataset.go);
   });
+  // On a TV (the Android TV app opens ?display=tv) the remote's left and right
+  // move between screens, up and down scroll, OK opens the person filter.
+  const onTv = new URLSearchParams(location.search).get('display') === 'tv';
+  if (onTv) document.body.classList.add('on-tv');
+  const ORDER = ['today', 'calendar', 'weather', 'travel', 'chores'];
   document.addEventListener('keydown', (e) => {
     state.lastKey = Date.now();
     if (e.key === 'Escape') closeOverlay();
+    if (!onTv) return;
+    if (!$('#overlay').hidden) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const i = Math.max(0, ORDER.indexOf(state.view));
+      const next = ORDER[(i + (e.key === 'ArrowRight' ? 1 : ORDER.length - 1)) % ORDER.length];
+      e.preventDefault();
+      go(next);
+      window.scrollTo(0, 0);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      window.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * window.innerHeight * 0.6, behavior: 'smooth' });
+    }
   });
   $('#overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay' && !e.target.classList.contains('map-full')) closeOverlay(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
