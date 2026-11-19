@@ -1,9 +1,9 @@
 # Privacy Policy
 
-*Effective November 18, 2026*
+*Effective November 18, 2026 (AI section added the same day)*
 
 This policy covers the **Family Dashboard** app for Roku, the **Family Dashboard Server**,
-and the **Chore Bounty Board** app for Android (together, "Family Dashboard").
+and the **Family Dashboard** app for Android (first released as Chore Bounty Board) (together, "Family Dashboard").
 
 ## The short version
 
@@ -30,20 +30,31 @@ computer. To build the dashboard, it contacts these services directly from your 
 | AlphaPortal (only if you turn on bus tracking) | Your school bus location | Your AlphaPortal sign-in token |
 | Firebase, run by Google (only if you connect it) | Chores, to-dos and settings for the phone app | Your family's chore data, in your own project |
 | GitHub | Check once a day for new versions | Your network address and the server's version number |
+| The AI company you choose: Google (Gemini), Anthropic (Claude) or OpenAI (only if you add your own key) | Meal ideas and sorting a brain dump, only when you ask | What you type, family first names, the foods and interests you entered for your kids, and the grocery list |
 
 Each service handles that information under its own privacy policy. We do not operate any of
 them and do not receive what they receive.
 
-**Chore Bounty Board app.** Stores chores, rewards, to-dos and family member names in the
+**Android app.** Stores chores, rewards, to-dos, the grocery list and family member names in the
 Firebase project you connected to your server. Private to-dos stay with the parent who wrote
 them. The app pairs with your server once on your home network and then talks directly to
 your Firebase project.
+
+## AI features
+
+AI features are off unless you add your own key from Google, Anthropic or OpenAI on the
+server's setup page. When you tap **Meal ideas** or **Sort it out**, your server sends the
+details listed above directly to the company you chose, using your key, and shows you the
+answer. Nothing it suggests is saved until you confirm it. That company handles the request
+under its own terms and privacy policy for your account.
 
 ## Children
 
 Family Dashboard is meant to be set up and managed by parents. Children's names, chores and
 rewards are stored only on your home computer and in your own Firebase project. We do not
-collect, see or share any information about children.
+collect, see or share any information about children. If a parent turns on AI features and
+asks for meal ideas, kids' first names and the foods and interests the parent entered go to
+the AI company the parent chose, as described above.
 
 ## Your control
 

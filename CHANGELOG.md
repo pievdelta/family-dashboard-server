@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.6.0
+
+- AI with your own key (optional): Gemini, Claude or OpenAI. Add it on the setup page or in the app's TV settings. An existing `GEMINI_API_KEY` line in config.txt is used automatically.
+- **Meal ideas** (app 2.4): four dinner ideas from what your kids will eat and what's on the grocery list, with the missing ingredients one tap from the list.
+- **Brain dump** (app 2.4): type everything on your mind; it comes back sorted into to-dos, groceries and events for you to check before anything is saved.
+- Requests go through your family's Firebase, so they work from anywhere. At most 30 an hour, and old ones are cleaned up after a day.
+- The setup page can test the key, and the app's server status shows whether AI is working.
+
 ## 5.5.0
 
 - The family schedule for the next 7 days is shared with the app (Family Dashboard 2.3), so parents see today and tomorrow on their phone anywhere, not just at home. Updated only when something changes.

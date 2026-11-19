@@ -73,18 +73,23 @@ class Query {
     const prefix = `${this.path}/`;
     return [...store.entries()]
       .filter(([p]) => p.startsWith(prefix) && !p.slice(prefix.length).includes('/'))
-      .filter(([, d]) => this.filters.every(([f, op, v]) => op === '==' && d[f] === v))
+      .filter(([, d]) => this.filters.every(([f, op, v]) => (
+        op === '==' ? d[f] === v : op === '<' ? d[f] < v : op === '>' ? d[f] > v : op === '<=' ? d[f] <= v : op === '>=' ? d[f] >= v : false)))
       .map(([p, d]) => new DocSnap(p, clone(d)));
   }
   async get() { const docs = this._docs(); return { docs, empty: docs.length === 0, size: docs.length }; }
   onSnapshot(cb) {
     let last;
+    let seen = new Set();
     const fire = () => {
       const docs = this._docs();
       const now = JSON.stringify(docs.map(d => [d.id, d._d]));
       if (now === last) return;
       last = now;
-      cb({ docs, empty: docs.length === 0, size: docs.length });
+      const ids = new Set(docs.map(d => d.id));
+      const changes = docs.filter(d => !seen.has(d.id)).map(doc => ({ type: 'added', doc }));
+      seen = ids;
+      cb({ docs, empty: docs.length === 0, size: docs.length, docChanges: () => changes });
     };
     listeners.add(fire);
     fire();

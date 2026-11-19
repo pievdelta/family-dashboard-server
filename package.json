@@ -1,6 +1,6 @@
 {
   "name": "family-dashboard-server",
-  "version": "5.5.0",
+  "version": "5.6.0",
   "description": "Home server for the Family Dashboard Roku app and the Chore Bounty Board Android app",
   "private": true,
   "license": "AGPL-3.0-or-later",

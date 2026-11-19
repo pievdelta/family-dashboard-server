@@ -14,7 +14,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 
 // Settings the app may set. Everything else in config.txt stays local.
-export const APP_SECRET_KEYS = ['CALENDAR_ICAL_URL', 'WORK_ICAL_URL', 'OPENWEATHER_KEY', 'ALPHAPORTAL_REFRESH_TOKEN'];
+export const APP_SECRET_KEYS = ['CALENDAR_ICAL_URL', 'WORK_ICAL_URL', 'OPENWEATHER_KEY', 'ALPHAPORTAL_REFRESH_TOKEN', 'AI_PROVIDER', 'AI_API_KEY'];
 
 const STATE_FILE = './.cloud-sync.json';
 

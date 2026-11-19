@@ -28,6 +28,20 @@ await test('checksum file', () => {
   assert.equal(sums['Family-Dashboard-Server-5.2.0.pkg'], 'b'.repeat(64));
 });
 
+await test('AI replies are read and cleaned', async () => {
+  const { parseJsonReply, cleanBrainDump, cleanMeals, aiSettings } = await import('../ai.js');
+  assert.deepEqual(parseJsonReply('```json\n{"a":1}\n```'), { a: 1 });
+  assert.deepEqual(parseJsonReply('Sure! {"a":2} hope that helps'), { a: 2 });
+  const bd = cleanBrainDump({ todos: [{ title: 'Call plumber', due: 'next week' }, { title: '' }], groceries: ['milk', ''], events: [{ title: 'Party', date: '2026-12-01' }, { title: 'No date' }] });
+  assert.equal(bd.todos.length, 1); assert.equal(bd.todos[0].due, null); assert.equal(bd.todos[0].owner, 'me');
+  assert.deepEqual(bd.groceries, ['milk']); assert.equal(bd.events.length, 1);
+  assert.throws(() => cleanBrainDump({}));
+  assert.equal(cleanMeals({ ideas: [{ name: 'Tacos', minutes: '20' }] }).ideas[0].minutes, 20);
+  assert.equal(aiSettings({ GEMINI_API_KEY: 'k'.repeat(30) }).provider, 'gemini');
+  assert.equal(aiSettings({ AI_PROVIDER: 'claude', AI_API_KEY: 'k'.repeat(30) }).providerName, 'Claude');
+  assert.equal(aiSettings({}).configured, false);
+});
+
 await test('server starts and answers', async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-test-'));
   fs.copyFileSync(path.join(root, 'household.example.json'), path.join(data, 'household.json'));

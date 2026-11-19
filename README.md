@@ -37,6 +37,13 @@ the wall, a laptop, or a phone. It shows the same Today, calendar, weather, trav
 chores screens as the TV, and kids can tap a chore to check it off. On a tablet, use
 **Add to Home Screen** so it opens full screen, and turn off auto-lock to keep it on.
 
+## AI features (optional)
+
+Add your own key from Google AI Studio (Gemini, with a free tier), Anthropic (Claude) or
+OpenAI on the setup page, under **AI**. The phone app then offers **Meal ideas** on the
+grocery list and a **Brain dump** on its Today screen. Requests go from your server straight
+to the company you chose; nothing is saved until you confirm it.
+
 ## Updates
 
 The server checks GitHub once a day. When a new version is out, the setup page shows

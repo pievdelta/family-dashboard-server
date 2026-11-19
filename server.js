@@ -15,6 +15,7 @@ import { setupPairing, isHomeNetwork, lanAddress } from './pairing.js';
 import { startCloudConfig } from './cloud-config.js';
 import { createUpdater } from './updater.js';
 import { setupExtras } from './setup-extras.js';
+import { startAI, aiSettings } from './ai.js';
 
 if (fs.existsSync('./config.txt')) {
   dotenv.config({ path: './config.txt' });
@@ -1718,7 +1719,7 @@ app.get('/api/map/full', (req, res) => {
 // ---- pairing, app settings and chores from the TV (server 5.0) ------------------------
 
 const updater = createUpdater({ version: SERVER_VERSION, repo: UPDATE_REPO === 'off' ? '' : UPDATE_REPO, requestRestart });
-const setupSections = setupExtras(app, { updater, dataDir: process.cwd(), requestRestart });
+const setupSections = setupExtras(app, { updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus });
 
 setupPairing(app, {
   extras: setupSections,
@@ -1826,9 +1827,36 @@ async function startFamilyCloud() {
     });
     startHealthReports(root);
     startAgendaSync(root);
+    const fakeAI = process.env.FD_FAKE_AI ? (await import('./test/fake-ai.mjs')).fakeAsk : undefined;
+    aiStatus = startAI({ root, context: (req) => aiContext(root, req), ...(fakeAI ? { ask: fakeAI, settings: { configured: true, provider: 'gemini', providerName: 'Test AI', model: 'fake', key: 'x' } } : {}) });
   } catch (e) {
     console.error(`[Firebase] ${e.message}`);
   }
+}
+
+// What an AI prompt may know about the family: first names, what the kids
+// eat and like (as entered in the app), and the grocery list. Nothing else.
+let aiStatus = { configured: aiSettings().configured, providerName: aiSettings().providerName };
+async function aiContext(root, req) {
+  const isParent = (u) => String(u.role || 'CHILD').toUpperCase() === 'PARENT';
+  const kids = liveData.users.filter(u => !isParent(u) && u.name).map(u => ({ name: u.name, safeFoods: u.safeFoods || '', interests: u.interests || '' }));
+  const parents = liveData.users.filter(u => isParent(u) && u.name).map(u => u.name);
+  const me = liveData.users.find(u => u.id === req.createdBy)?.name || '';
+  const groceries = { toBuy: [], recent: [] };
+  try {
+    const snap = await root.collection('groceries').get();
+    const weekAgo = Date.now() - 7 * 86400000;
+    for (const d of snap.docs) {
+      const g = d.data() || {};
+      if (!g.name) continue;
+      if (!g.done) groceries.toBuy.push(g.name);
+      else if ((g.doneAt || 0) > weekAgo) groceries.recent.push(g.name);
+    }
+  } catch (e) { /* the list is optional */ }
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
+  return { kids, parents, me, groceries, today, weekday };
 }
 
 // Every few minutes, tell the app how the server is doing: running, calendar
@@ -1849,7 +1877,8 @@ function healthReport() {
       error: calendarHealth.error
     },
     bus: { configured: busHealth.configured, ok: busHealth.configured ? !busProblem : null, problem: busProblem },
-    update: { available: updater.available() ? updater.status.latest.version : null }
+    update: { available: updater.available() ? updater.status.latest.version : null },
+    ai: { configured: Boolean(aiStatus.configured), provider: aiStatus.providerName || null, problem: aiStatus.lastError || null }
   };
 }
 

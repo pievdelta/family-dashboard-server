@@ -21,3 +21,7 @@ FIREBASE_SERVICE_ACCOUNT=
 # Optional live school bus (AlphaPortal). See README: sign in at your AlphaPortal site and run
 # JSON.parse(localStorage.user).User.RefreshToken in the browser console. Renews itself while the server runs.
 ALPHAPORTAL_REFRESH_TOKEN=
+
+# AI (optional): gemini, claude or openai, and your own key. AI_MODEL is optional.
+AI_PROVIDER=
+AI_API_KEY=

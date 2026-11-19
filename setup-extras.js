@@ -6,6 +6,8 @@ import path from 'path';
 import { spawn, spawnSync } from 'child_process';
 import express from 'express';
 import { homeOnly } from './pairing.js';
+import { updateConfigFile } from './cloud-config.js';
+import { aiSettings, askAI, AI_PROVIDERS } from './ai.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const form = express.urlencoded({ extended: false, limit: '10kb' });
@@ -51,7 +53,7 @@ function tail(file, lines) {
   }
 }
 
-export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, log = console.log }) {
+export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), log = console.log }) {
   const logFile = path.join(dataDir, 'logs', 'server.log');
   let installError = null;
 
@@ -105,6 +107,40 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     }
   });
 
+  // ---- AI with the family's own key
+  let aiNote = null;
+  app.post('/setup/ai', homeOnly, form, (req, res) => {
+    const provider = String(req.body?.provider || '').toLowerCase();
+    const key = String(req.body?.key || '').replace(/[\r\n]/g, '').trim();
+    if (req.body?.remove === '1') {
+      updateConfigFile(path.join(dataDir, 'config.txt'), { AI_API_KEY: '', AI_PROVIDER: '', GEMINI_API_KEY: '' });
+      aiNote = 'Removed the AI key. Restarting.';
+      log('[Setup] AI key removed.');
+      res.redirect('/setup#ai');
+      if (requestRestart) requestRestart();
+      return;
+    }
+    if (!AI_PROVIDERS[provider] || key.length < 20) {
+      aiNote = 'Choose a provider and paste the whole key.';
+      return res.redirect('/setup#ai');
+    }
+    updateConfigFile(path.join(dataDir, 'config.txt'), { AI_PROVIDER: provider, AI_API_KEY: key });
+    aiNote = `Saved your ${AI_PROVIDERS[provider].name} key. Restarting to turn on meal ideas and the brain dump.`;
+    log(`[Setup] AI key saved for ${AI_PROVIDERS[provider].name}.`);
+    res.redirect('/setup#ai');
+    if (requestRestart) requestRestart();
+  });
+  app.post('/setup/ai/test', homeOnly, async (req, res) => {
+    const s = aiSettings();
+    try {
+      const j = await askAI(s, 'Reply with JSON only.', 'Reply with {"ok": true, "say": "a five-word hello to a busy family"}.');
+      aiNote = `It works. ${s.providerName} says: "${String(j.say || 'hello').slice(0, 80)}"`;
+    } catch (e) {
+      aiNote = `The test didn't work: ${e.message}`;
+    }
+    res.redirect('/setup#ai');
+  });
+
   app.post('/setup/restart', homeOnly, (req, res) => {
     log('[Setup] Restart requested from the setup page.');
     res.type('html').send('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10;url=/setup"><body style="font:18px system-ui;padding:40px">Restarting... this page reloads in a few seconds.</body>');
@@ -156,6 +192,25 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     if (s.error) body += `<p class="err">${esc(s.error)}</p>`;
     if (installError) body += `<p class="err">The update didn't install: ${esc(installError)}</p>`;
     parts.push(section('updates', ok, 'Updates', body));
+
+    // AI
+    const ai = aiSettings();
+    const st = aiState() || {};
+    let aiBody = `<p>Optional. With your own AI key, the app suggests dinners from what your kids eat and what's on the grocery list, and turns a quick brain dump into to-dos, groceries and events. Requests go from this server straight to the AI company you pick, using your key.</p>`;
+    if (aiNote) aiBody += `<p><b>${esc(aiNote)}</b></p>`;
+    if (ai.configured) {
+      aiBody += `<p>Using <b>${esc(ai.providerName)}</b> (${esc(ai.model)}).${st.lastError ? ` <span class="err">Last problem: ${esc(st.lastError)}</span>` : ''}</p>
+        <div class="row"><form method="post" action="/setup/ai/test" class="inline"><button class="quiet">Test it</button></form>
+        <form method="post" action="/setup/ai" class="inline"><input type="hidden" name="remove" value="1"><button class="quiet">Remove the key</button></form></div>
+        <details><summary>Use a different key</summary>`;
+    }
+    aiBody += `<form method="post" action="/setup/ai" class="row">
+        <select name="provider">${Object.entries(AI_PROVIDERS).map(([id, p]) => `<option value="${id}"${(ai.provider || 'gemini') === id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+        <input name="key" type="password" autocomplete="off" placeholder="Paste your API key" style="flex:1;min-width:220px">
+        <button>Save key</button></form>
+      <p class="muted small">Getting a key: Gemini at aistudio.google.com (has a free tier), Claude at console.anthropic.com, OpenAI at platform.openai.com. The key stays in config.txt on this computer.</p>`;
+    if (ai.configured) aiBody += '</details>';
+    parts.push(section('ai', ai.configured ? true : null, 'AI (optional)', aiBody));
 
     let tools = `<div class="row"><a href="/setup/log" target="_blank">Show the server log</a>`;
     if (onThisComputer(req)) tools += `<form method="post" action="/setup/open-folder" class="inline"><button class="quiet">Show settings folder</button></form>`;
