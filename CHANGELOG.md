@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.10.0
+
+- **Food allergies** (app 2.7): enter them for anyone, kids and adults. Meal ideas treat them as strict: the AI is told never to use them, and the server double-checks every idea and flags any that look like they contain one ("May contain peanuts (Leo). Check before you cook."), listing safe ideas first. The check is a second look, not a guarantee.
+- Web dashboard on a TV: when the Android TV app adds its own remote navigation, the arrow keys are left to it.
+
 ## 5.9.0
 
 - **Home Assistant** (optional, read-only): connect it on the setup page with its address and a long-lived token, then pick up to 12 things for a new **Home** card on the dashboard (locks, the garage, doors, the thermostat, leak sensors and so on).

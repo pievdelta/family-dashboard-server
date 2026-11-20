@@ -578,6 +578,9 @@
     state.lastKey = Date.now();
     if (e.key === 'Escape') closeOverlay();
     if (!onTv) return;
+    // The Android TV app may add its own remote navigation (SpatialNavigation), which can
+    // reach every button. Then the arrows are its job.
+    if (window.SpatialNavigation) return;
     if (!$('#overlay').hidden) return;
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       const i = Math.max(0, ORDER.indexOf(state.view));

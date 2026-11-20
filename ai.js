@@ -95,14 +95,17 @@ const VIBES = {
   adventurous: 'Try dishes the family probably hasn\'t made before. The kids\' foods are not limits tonight; for each dinner, say in "why" which of their foods could go on the side.'
 };
 
-export function mealPrompt({ kids, groceries, note, today, planned = [], minutes = null, vibe = 'favorites' }) {
+export function mealPrompt({ kids, groceries, note, today, planned = [], minutes = null, vibe = 'favorites', allergies = [] }) {
   const v = VIBES[vibe] ? vibe : 'favorites';
   const system = 'You suggest easy family dinners. Be practical: weeknight-friendly, common ingredients, nothing fancy unless asked. ' +
-    (v === 'adventurous' ? 'The family wants something new tonight. ' : 'Respect what each kid will eat. ') + 'Reply with JSON only.';
+    (v === 'adventurous' ? 'The family wants something new tonight. ' : 'Respect what each kid will eat. ') +
+    (allergies.length ? 'Food allergies are strict: never suggest a dinner, side, sauce or ingredient that contains a listed allergen, even as an option. ' : '') +
+    'Reply with JSON only.';
   const lines = [
     `Today is ${today}.`,
     kids.length ? 'The kids:' : '',
     ...kids.map(k => `- ${k.name}${k.safeFoods ? `: will reliably eat ${k.safeFoods}` : ''}${k.interests ? ` (into ${k.interests})` : ''}`),
+    allergies.length ? `FOOD ALLERGIES, never use these or anything made with them: ${allergies.map(a => `${a.name}: ${a.items.join(', ')}`).join('; ')}.` : '',
     groceries.toBuy.length ? `Already on the grocery list: ${groceries.toBuy.join(', ')}.` : '',
     groceries.recent.length ? `Recently bought: ${groceries.recent.join(', ')}.` : '',
     groceries.pantry?.length ? `Pantry staples they always have: ${groceries.pantry.join(', ')}.` : '',
@@ -117,15 +120,54 @@ export function mealPrompt({ kids, groceries, note, today, planned = [], minutes
   return { system, prompt: lines.filter(l => l !== '').join('\n') };
 }
 
-export function cleanMeals(json) {
+// Words that usually mean an allergen is in a dish. A second check after the AI, not a
+// guarantee: it flags, it doesn't promise. Matched as whole words, so "eggplant" isn't egg.
+const ALLERGEN_WORDS = {
+  peanut: ['peanut', 'peanuts', 'peanut butter', 'satay'],
+  'tree nut': ['almond', 'almonds', 'cashew', 'cashews', 'walnut', 'walnuts', 'pecan', 'pecans', 'pistachio', 'pistachios', 'hazelnut', 'hazelnuts', 'macadamia', 'pine nuts', 'pesto', 'nutella', 'praline'],
+  milk: ['milk', 'cheese', 'cheddar', 'mozzarella', 'parmesan', 'cream', 'yogurt', 'yoghurt', 'butter', 'ghee', 'alfredo', 'queso', 'ricotta', 'ranch', 'sour cream', 'mac and cheese'],
+  egg: ['egg', 'eggs', 'mayo', 'mayonnaise', 'aioli', 'meringue', 'frittata', 'omelet', 'omelette', 'quiche'],
+  wheat: ['wheat', 'flour', 'bread', 'breadcrumbs', 'pasta', 'spaghetti', 'noodles', 'tortilla', 'tortillas', 'bun', 'buns', 'pizza', 'couscous', 'crackers', 'pancake', 'pancakes', 'waffles', 'soy sauce', 'macaroni', 'lasagna'],
+  soy: ['soy', 'soy sauce', 'tofu', 'edamame', 'miso', 'tempeh', 'teriyaki'],
+  fish: ['fish', 'salmon', 'tuna', 'cod', 'tilapia', 'halibut', 'trout', 'anchovy', 'anchovies', 'sardines', 'fish sauce'],
+  shellfish: ['shellfish', 'shrimp', 'prawn', 'prawns', 'crab', 'lobster', 'clam', 'clams', 'mussels', 'scallops', 'oysters', 'crawfish'],
+  sesame: ['sesame', 'tahini', 'hummus']
+};
+const ALIASES = { peanuts: 'peanut', 'tree nuts': 'tree nut', nuts: 'tree nut', dairy: 'milk', eggs: 'egg', gluten: 'wheat', 'soy beans': 'soy', soybeans: 'soy', seafood: 'shellfish' };
+// "peanut butter" and the like aren't dairy
+const NOT_DAIRY = /\b(peanut|almond|cashew|sunflower|apple|cocoa|shea|nut)\s+butter\b|\bcoconut (milk|cream)\b|\b(oat|almond|soy|rice) milk\b|\bcream of tartar\b|\bbutternut\b/gi;
+
+function wordsFor(allergen) {
+  const a = String(allergen).trim().toLowerCase();
+  const key = ALIASES[a] || a.replace(/s$/, '');
+  return [...new Set([a, ...(ALLERGEN_WORDS[key] || ALLERGEN_WORDS[a] || [])])];
+}
+
+/** "May contain peanut (Leo)" for an idea that seems to include someone's allergen, else null. */
+export function allergyWarning(idea, allergies = []) {
+  const raw = [idea.name, idea.why, ...(idea.ingredients || []), ...(idea.toBuy || [])].join(' | ').toLowerCase();
+  const hits = [];
+  for (const { name, items } of allergies) {
+    for (const allergen of items) {
+      const text = ['milk', 'dairy'].includes(String(allergen).toLowerCase()) ? raw.replace(NOT_DAIRY, ' ') : raw;
+      const found = wordsFor(allergen).find(w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text));
+      if (found) hits.push(`${allergen.toLowerCase()} (${name})`);
+    }
+  }
+  return hits.length ? `May contain ${[...new Set(hits)].join(', ')}. Check before you cook.` : null;
+}
+
+export function cleanMeals(json, allergies = []) {
   const ideas = (Array.isArray(json?.ideas) ? json.ideas : []).slice(0, 6).map(i => ({
     name: clip(i?.name, 80),
     why: clip(i?.why, 200),
     minutes: Number.isFinite(Number(i?.minutes)) ? Math.round(Number(i.minutes)) : null,
     ingredients: strList(i?.ingredients, 15, 60),
     toBuy: strList(i?.toBuy, 15, 60)
-  })).filter(i => i.name);
+  })).filter(i => i.name).map(i => ({ ...i, warning: allergyWarning(i, allergies) }));
   if (!ideas.length) throw new Error('The AI didn\'t come up with any ideas. Try again, maybe with a note.');
+  // ideas that look safe first
+  ideas.sort((a, b) => Boolean(a.warning) - Boolean(b.warning));
   return { ideas };
 }
 
@@ -206,7 +248,7 @@ export function startAI({ root, settings = aiSettings(), context, ask = askAI, l
           minutes: Number.isFinite(minutes) && minutes >= 5 && minutes <= 240 ? Math.round(minutes) : null,
           vibe: String(req.input?.vibe || 'favorites').toLowerCase()
         });
-        result = cleanMeals(await ask(settings, p.system, p.prompt));
+        result = cleanMeals(await ask(settings, p.system, p.prompt), ctx.allergies || []);
       } else if (req.type === 'braindump') {
         const p = brainDumpPrompt({ ...ctx, kids: ctx.kids.map(k => k.name), text: req.input?.text });
         result = cleanBrainDump(await ask(settings, p.system, p.prompt));

@@ -1875,7 +1875,11 @@ async function aiContext(root, req) {
   const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
   // dinners already planned, so ideas don't repeat them
   const planned = liveData.meals.filter(m => m.name && String(m.date || '') >= today).map(m => `${m.date}: ${m.name}`).slice(0, 14);
-  return { kids, parents, me, groceries: { ...groceries, pantry }, planned, today, weekday };
+  // food allergies for everyone, kids and adults: never in a suggestion
+  const allergies = liveData.users.filter(u => u.name && String(u.allergies || '').trim())
+    .map(u => ({ name: u.name, items: String(u.allergies).split(',').map(x => x.trim()).filter(Boolean).slice(0, 20) }))
+    .filter(a => a.items.length);
+  return { kids, parents, me, groceries: { ...groceries, pantry }, planned, allergies, today, weekday };
 }
 
 // Every few minutes, tell the app how the server is doing: running, calendar

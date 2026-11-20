@@ -139,6 +139,20 @@ await test('Home Assistant devices read and alert like a family would expect', a
   assert.equal(map['lock.front'], undefined);
 });
 
+await test('allergies are strict in the prompt and flagged in ideas', async () => {
+  const { mealPrompt, cleanMeals, allergyWarning } = await import('../ai.js');
+  const al = [{ name: 'Leo', items: ['Peanuts'] }, { name: 'Sam', items: ['Shellfish'] }, { name: 'Maya', items: ['Milk'] }, { name: 'Dana', items: ['Eggs'] }];
+  const p = mealPrompt({ kids: [], groceries: { toBuy: [], recent: [] }, today: '2026-11-19', allergies: al });
+  assert.match(p.system, /allergies are strict/);
+  assert.match(p.prompt, /FOOD ALLERGIES.*Leo: Peanuts; Sam: Shellfish/);
+  assert.equal(mealPrompt({ kids: [], groceries: { toBuy: [], recent: [] }, today: 'x' }).prompt.includes('ALLERG'), false);
+  const out = cleanMeals({ ideas: [{ name: 'Shrimp tacos', ingredients: ['shrimp', 'corn tortillas'] }, { name: 'Chicken and rice', ingredients: ['chicken', 'rice', 'coconut milk'] }] }, al);
+  assert.equal(out.ideas[0].name, 'Chicken and rice', 'safe ideas first');
+  assert.equal(out.ideas[0].warning, null);
+  assert.match(out.ideas[1].warning, /shellfish \(Sam\)/);
+  assert.equal(allergyWarning({ name: 'Eggplant', ingredients: ['butternut squash', 'peanut-free sauce'] }, [{ name: 'D', items: ['Eggs', 'Milk'] }]), null);
+});
+
 await test('server starts and answers', async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-test-'));
   fs.copyFileSync(path.join(root, 'household.example.json'), path.join(data, 'household.json'));
