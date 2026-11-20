@@ -242,7 +242,29 @@
       ${kids.length ? `<div class="people" style="margin-top:10px">${kids.map(k => `<span class="chip"><i style="background:${css(k.colorHex)}"></i>${esc(titleCase(k.name))} · ${esc(k.earnedLabel || k.earnedTotal || 0)}</span>`).join('')}</div>` : ''}
     </div>`;
 
-    viewEl.innerHTML = `<div class="grid-today"><div class="col">${hero}${list}</div><div class="col">${travel}${weather}${choreCard}</div></div>`;
+    // from Home Assistant (server 5.9+): the few things the family picked, never controls
+    const home = arr(d.home);
+    const homeCard = home.length ? `<div class="card"><h3>Home <small>${home.some(h => h.attention) ? 'Needs a look' : 'All good'}</small></h3>
+      <div class="home-grid">${home.map(h => `<div class="home-item${h.attention ? ' attn' : ''}">${homeIcon(h.icon)}<div style="min-width:0"><div class="n">${esc(h.name)}</div><div class="s">${esc(h.state)}</div></div></div>`).join('')}</div></div>` : '';
+
+    viewEl.innerHTML = `<div class="grid-today"><div class="col">${hero}${list}</div><div class="col">${homeCard}${travel}${weather}${choreCard}</div></div>`;
+  }
+
+  // small line icons for the Home card
+  function homeIcon(kind) {
+    const p = {
+      lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+      door: '<path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M4 21h16"/><circle cx="14.5" cy="12" r="1"/>',
+      garage: '<path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-8h10v8M7 16h10"/>',
+      temp: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',
+      motion: '<circle cx="13" cy="4" r="2"/><path d="M9 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 15l-1-4"/>',
+      person: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+      alarm: '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+      water: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
+      bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+      battery: '<rect x="3" y="8" width="16" height="9" rx="2"/><path d="M21 11v3"/>'
+    }[kind] || '<circle cx="12" cy="12" r="4"/>';
+    return `<svg class="hi" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
   }
 
   function renderCalendar() {

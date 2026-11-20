@@ -150,6 +150,12 @@
       weather: wx(state.selectedWxLoc), homeWeather: wx('riverside'), chores, users, calendars: cals, bus,
       transport: { selectedMemberId: state.transport, members }, todayEvents, calendar: upcoming,
       calendarViews: { todayEvents, list: upcoming, weekDays, monthCells, monthTitle: `${MONTH[now.getMonth()]} ${now.getFullYear()}`, calendars: cals },
+      home: [
+        { id: 'lock.front_door', name: 'Front door', state: 'Locked', icon: 'lock', attention: false },
+        { id: 'cover.garage_door', name: 'Garage door', state: 'Open', icon: 'garage', attention: true },
+        { id: 'climate.hallway', name: 'Thermostat', state: '70° · Heating', icon: 'temp', attention: false },
+        { id: 'binary_sensor.back_door', name: 'Back door', state: 'Closed', icon: 'door', attention: false }
+      ],
       serverTime: Math.floor(nowMs / 1000), serverVersion: 'demo', demo: true
     };
   }

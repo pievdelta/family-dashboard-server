@@ -16,6 +16,7 @@ import { startCloudConfig } from './cloud-config.js';
 import { createUpdater } from './updater.js';
 import { setupExtras } from './setup-extras.js';
 import { startAI, aiSettings } from './ai.js';
+import { startHomeAssistant } from './home-assistant.js';
 
 if (fs.existsSync('./config.txt')) {
   dotenv.config({ path: './config.txt' });
@@ -1510,6 +1511,12 @@ function buildAlerts() {
     alerts.push({ ...busNearAlert, colorHex: '0x22C55EFF', sound: !inQuietHours(busNearAlert.at * 1000) });
   }
 
+  // from Home Assistant: the doorbell, a door left open. Safety alarms chime even in quiet hours.
+  for (const a of homeAssistant.alerts(nowMs)) {
+    const urgent = /smoke|gas|carbon monoxide|water|going off/i.test(a.title);
+    alerts.push({ ...a, colorHex: urgent ? '0xEF4444FF' : '0xF59E0BFF', sound: urgent || !inQuietHours(a.at * 1000) });
+  }
+
   alerts.sort((a, b) => a.at - b.at);
   return alerts.slice(0, 30);
 }
@@ -1666,6 +1673,7 @@ app.get('/api/dashboard', (req, res) => {
       calendar: calendarData.list,
       calendarTotal: calendarData.listTotal,
       calendarViews: calendarData,
+      home: homeAssistant.homeStrip(),
       alerts: buildAlerts()
     });
   } catch (err) {
@@ -1719,7 +1727,9 @@ app.get('/api/map/full', (req, res) => {
 // ---- pairing, app settings and chores from the TV (server 5.0) ------------------------
 
 const updater = createUpdater({ version: SERVER_VERSION, repo: UPDATE_REPO === 'off' ? '' : UPDATE_REPO, requestRestart });
-const setupSections = setupExtras(app, { updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus });
+// Home Assistant (optional, read-only): picked devices on the TV and alerts when they need someone
+const homeAssistant = startHomeAssistant({ picksFile: path.join(process.cwd(), 'home-assistant.json') });
+const setupSections = setupExtras(app, { updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant });
 
 setupPairing(app, {
   extras: setupSections,
@@ -1887,7 +1897,8 @@ function healthReport() {
     },
     bus: { configured: busHealth.configured, ok: busHealth.configured ? !busProblem : null, problem: busProblem },
     update: { available: updater.available() ? updater.status.latest.version : null },
-    ai: { configured: Boolean(aiStatus.configured), provider: aiStatus.providerName || null, problem: aiStatus.lastError || null }
+    ai: { configured: Boolean(aiStatus.configured), provider: aiStatus.providerName || null, problem: aiStatus.lastError || null },
+    homeAssistant: { configured: homeAssistant.status.configured, connected: homeAssistant.status.connected, problem: homeAssistant.status.problem }
   };
 }
 

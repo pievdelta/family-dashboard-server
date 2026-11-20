@@ -225,3 +225,16 @@ a { color: var(--accent); }
 }
 
 .tag { display: inline-block; font-size: 12px; font-weight: 700; color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 0 6px; margin-left: 6px; vertical-align: 2px; }
+
+/* Home card (Home Assistant) */
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.home-item { display: flex; gap: 10px; align-items: center; background: var(--card2, rgba(127,127,127,.08)); border-radius: 12px; padding: 10px 12px; }
+.home-item .hi { flex: none; color: var(--text2); }
+.home-item .n { font-size: 13px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-item .s { font-weight: 700; font-size: 16px; }
+.home-item.attn { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.home-item.attn .hi, .home-item.attn .s { color: var(--warn); }
+
+/* On a TV (?display=tv) the browser is 960 wide, which would otherwise stack Today into one
+   column like a phone. A TV is wide: keep the two columns. */
+.on-tv .grid-today { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }

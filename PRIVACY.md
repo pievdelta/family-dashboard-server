@@ -29,6 +29,7 @@ computer. To build the dashboard, it contacts these services directly from your 
 | OpenStreetMap (map tiles and Nominatim), CARTO, OSRM | Maps, finding addresses, drive times | Map areas, event addresses, start and end points |
 | AlphaPortal (only if you turn on bus tracking) | Your school bus location | Your AlphaPortal sign-in token |
 | Firebase, run by Google (only if you connect it) | Chores, to-dos and settings for the phone app | Your family's chore data, in your own project |
+| Your Home Assistant (only if you connect it) | Show the devices you pick and alert you about them | Your Home Assistant token; it stays on your home network |
 | GitHub | Check once a day for new versions | Your network address and the server's version number |
 | The AI company you choose: Google (Gemini), Anthropic (Claude) or OpenAI (only if you add your own key) | Meal ideas and sorting a brain dump, only when you ask | What you type, family first names, the foods and interests you entered for your kids, the grocery list, pantry staples and planned meals |
 

@@ -97,6 +97,48 @@ await test('meal choices reach the prompt; old meals and groceries are tidied', 
   assert.deepEqual((await root.collection('meals').get()).docs.map(d => d.id), ['recent']);
 });
 
+await test('Home Assistant devices read and alert like a family would expect', async () => {
+  const { describe, homeAlerts, applyEntityMessage, haSettings } = await import('../home-assistant.js');
+  const d = (entity_id, state, attributes = {}) => describe({ entity_id, state, attributes });
+  assert.deepEqual([d('lock.front', 'unlocked').state, d('lock.front', 'unlocked').attention], ['Unlocked', true]);
+  assert.equal(d('cover.garage', 'open', { device_class: 'garage' }).icon, 'garage');
+  assert.equal(d('binary_sensor.back', 'off', { device_class: 'door' }).state, 'Closed');
+  assert.equal(d('binary_sensor.leak', 'on', { device_class: 'moisture' }).state, 'Wet');
+  assert.equal(d('climate.hall', 'heat', { current_temperature: 69.6, hvac_action: 'heating' }).state, '70° · Heating');
+  assert.equal(d('sensor.out', '41.26', { unit_of_measurement: '°F' }).state, '41.3°F');
+  assert.equal(d('lock.x', 'unavailable').state, 'Not available');
+  assert.equal(haSettings({ HA_URL: 'homeassistant.local:8123/', HA_TOKEN: 't' }).url, 'http://homeassistant.local:8123');
+
+  const now = Date.parse('2026-11-19T20:00:00Z');
+  const ents = {
+    'cover.garage': { state: 'open', attributes: { friendly_name: 'Garage door', device_class: 'garage' }, last_changed: now - 31 * 60000 },
+    'lock.front': { state: 'unlocked', attributes: { friendly_name: 'Front door' }, last_changed: now - 60000 },
+    'binary_sensor.leak': { state: 'on', attributes: { friendly_name: 'Basement', device_class: 'moisture' }, last_changed: now - 5000 },
+    'event.doorbell': { state: new Date(now - 10000).toISOString(), attributes: { friendly_name: 'Front doorbell', device_class: 'doorbell' }, last_changed: now - 10000 },
+    'lock.back': { state: 'locked', attributes: { friendly_name: 'Back door' }, last_changed: now - 5000 }
+  };
+  const alerts = homeAlerts(ents, { alerts: { 'cover.garage': 30, 'lock.front': 10, 'binary_sensor.leak': 0, 'event.doorbell': 0, 'lock.back': 0 } }, now);
+  const byId = Object.fromEntries(alerts.map(a => [a.id.split('-').slice(0, 2).join('-'), a]));
+  assert.equal(byId['ha-cover.garage'].title, 'Garage door has been open 30 minutes');
+  assert.ok(byId['ha-cover.garage'].at * 1000 <= now, 'garage alert is due');
+  assert.ok(byId['ha-lock.front'].at * 1000 > now, 'front door alert waits for 10 minutes');
+  assert.equal(byId['ha-binary_sensor.leak'].title, 'Basement detects water');
+  assert.equal(byId['ha-event.doorbell'].title, 'Someone is at the door');
+  assert.ok(!byId['ha-lock.back'], 'a locked door has no alert');
+  assert.ok(alerts.every(a => a.kind === 'home'));
+  assert.equal(homeAlerts(ents, { alerts: { 'event.doorbell': 0 } }, now + 5 * 60000).length, 0, 'doorbell alert ends after 2 minutes');
+
+  const map = {};
+  applyEntityMessage(map, { a: { 'lock.front': { s: 'locked', a: { friendly_name: 'Front door' }, lc: 1700000000.5 } } });
+  assert.equal(map['lock.front'].last_changed, 1700000000500);
+  applyEntityMessage(map, { c: { 'lock.front': { '+': { s: 'unlocked', lc: 1700000100 } } } });
+  assert.deepEqual([map['lock.front'].state, map['lock.front'].last_changed], ['unlocked', 1700000100000]);
+  applyEntityMessage(map, { c: { 'lock.front': { '+': { a: { battery: 80 } }, '-': { a: ['friendly_name'] } } } });
+  assert.deepEqual(map['lock.front'].attributes, { battery: 80 });
+  applyEntityMessage(map, { r: ['lock.front'] });
+  assert.equal(map['lock.front'], undefined);
+});
+
 await test('server starts and answers', async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-test-'));
   fs.copyFileSync(path.join(root, 'household.example.json'), path.join(data, 'household.json'));

@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.9.0
+
+- **Home Assistant** (optional, read-only): connect it on the setup page with its address and a long-lived token, then pick up to 12 things for a new **Home** card on the dashboard (locks, the garage, doors, the thermostat, leak sensors and so on).
+- **Alerts from the house** on the TV: when the doorbell rings, a door opens, a lock is left unlocked, or a leak or smoke sensor goes off. Choose right away or "if it stays that way" for 10, 30 or 60 minutes. Smoke, gas, carbon monoxide and water alerts chime even in quiet hours. They work on the Roku app and the web dashboard as they are today.
+- Family Dashboard never turns anything on or off in Home Assistant.
+- Web dashboard on a TV keeps its two columns on Today instead of stacking like a phone.
+
 ## 5.8.1
 
 - Web dashboard demo: open the dashboard with `?demo=1` (for example http://192.168.1.20:3000/?demo=1) to see a made-up family. The Android TV and Fire TV app uses the same demo when it can't find a server.

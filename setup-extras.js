@@ -8,6 +8,7 @@ import express from 'express';
 import { homeOnly } from './pairing.js';
 import { updateConfigFile } from './cloud-config.js';
 import { aiSettings, askAI, AI_PROVIDERS } from './ai.js';
+import { haSettings, testConnection, listEntities, readPicks, savePicks, ALERT_CHOICES } from './home-assistant.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const form = express.urlencoded({ extended: false, limit: '10kb' });
@@ -53,7 +54,7 @@ function tail(file, lines) {
   }
 }
 
-export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), log = console.log }) {
+export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, log = console.log }) {
   const logFile = path.join(dataDir, 'logs', 'server.log');
   let installError = null;
 
@@ -77,7 +78,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
   });
 
   // settings files from an older copy (a folder run with npm start), chosen in the browser
-  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json'];
+  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json'];
   let importNote = null;
   app.post('/setup/import', homeOnly, express.json({ limit: '2mb' }), (req, res) => {
     const files = req.body?.files || {};
@@ -141,6 +142,104 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     res.redirect('/setup#ai');
   });
 
+  // ---- Home Assistant (optional, read-only)
+  let haNote = null;
+  let haList = { at: 0, items: null, error: null };
+  const picksFile = path.join(dataDir, 'home-assistant.json');
+  const bigForm = express.urlencoded({ extended: false, limit: '300kb', parameterLimit: 5000 });
+
+  app.post('/setup/ha', homeOnly, form, async (req, res) => {
+    const configFile = path.join(dataDir, 'config.txt');
+    if (req.body?.remove === '1') {
+      updateConfigFile(configFile, { HA_URL: '', HA_TOKEN: '' });
+      haNote = 'Disconnected from Home Assistant. Restarting.';
+      log('[Setup] Home Assistant removed.');
+      res.redirect('/setup#ha');
+      if (requestRestart) requestRestart();
+      return;
+    }
+    const settings = haSettings({ HA_URL: req.body?.url, HA_TOKEN: String(req.body?.token || '').replace(/\s+/g, '') });
+    if (!settings.configured) { haNote = 'Fill in both the address and the token.'; return res.redirect('/setup#ha'); }
+    try {
+      haNote = `${await testConnection(settings)} Saved. Restarting, then choose what the TV shows below.`;
+    } catch (e) {
+      haNote = `Not saved: ${e.message}`;
+      return res.redirect('/setup#ha');
+    }
+    updateConfigFile(configFile, { HA_URL: settings.url, HA_TOKEN: settings.token });
+    log(`[Setup] Home Assistant connected at ${settings.url}.`);
+    res.redirect('/setup#ha');
+    if (requestRestart) requestRestart();
+  });
+
+  app.post('/setup/ha/test', homeOnly, async (req, res) => {
+    try { haNote = await testConnection(haSettings()); } catch (e) { haNote = `The test didn't work: ${e.message}`; }
+    res.redirect('/setup#ha');
+  });
+
+  app.post('/setup/ha/picks', homeOnly, bigForm, (req, res) => {
+    const list = (v) => (Array.isArray(v) ? v : v ? [v] : []).map(String);
+    const show = list(req.body?.show).slice(0, 12);
+    const alerts = {};
+    for (const [k, v] of Object.entries(req.body || {})) {
+      if (k.startsWith('alert:') && v !== '' && Number.isFinite(Number(v))) alerts[k.slice(6)] = Number(v);
+    }
+    savePicks(picksFile, { show, alerts });
+    homeAssistant?.restart();
+    const n = Object.keys(alerts).length;
+    haNote = `Saved. The TV shows ${show.length} thing${show.length === 1 ? '' : 's'} from the house and alerts for ${n}.`;
+    log(`[Setup] Home Assistant picks saved: ${show.length} shown, ${n} with alerts.`);
+    res.redirect('/setup#ha');
+  });
+
+  async function haSection() {
+    const settings = haSettings();
+    const st = homeAssistant?.status || {};
+    let body = '<p>Optional. If your home runs <a href="https://www.home-assistant.io" target="_blank">Home Assistant</a>, the TV can show a few things from the house, like the locks, the garage and the thermostat, and alert the family when the doorbell rings or a door is left open. It only looks; it never turns anything on or off.</p>';
+    if (haNote) body += `<p><b>${esc(haNote)}</b></p>`;
+    if (!settings.configured) {
+      body += `<form method="post" action="/setup/ha">
+        <div class="row"><input name="url" placeholder="Home Assistant address, like http://homeassistant.local:8123" style="flex:1;min-width:260px"></div>
+        <div class="row" style="margin-top:8px"><input name="token" type="password" autocomplete="off" placeholder="Long-lived access token" style="flex:1;min-width:260px"><button>Connect</button></div></form>
+        <p class="muted small">Make a token in Home Assistant: click your name at the bottom left, open the <b>Security</b> tab, and under <b>Long-lived access tokens</b> choose <b>Create token</b>. It stays in config.txt on this computer.</p>`;
+      return section('ha', null, 'Home Assistant (optional)', body);
+    }
+    const state = st.connected ? `Connected to <code>${esc(settings.url)}</code>.` : st.problem ? `<span class="err">${esc(st.problem)}</span>` : `Set up for <code>${esc(settings.url)}</code>.`;
+    body += `<p>${state}</p><div class="row"><form method="post" action="/setup/ha/test" class="inline"><button class="quiet">Test it</button></form>
+      <form method="post" action="/setup/ha" class="inline"><input type="hidden" name="remove" value="1"><button class="quiet">Disconnect</button></form></div>`;
+
+    // the device list, fresh every 30 seconds at most
+    if (Date.now() - haList.at > 30000) {
+      try { haList = { at: Date.now(), items: await listEntities(settings), error: null }; } catch (e) { haList = { at: Date.now(), items: null, error: e.message }; }
+    }
+    const picks = readPicks(picksFile);
+    if (haList.error) {
+      body += `<p class="err">Couldn't get the list of devices: ${esc(haList.error)}</p>`;
+    } else if (haList.items) {
+      const picked = new Set([...picks.show, ...Object.keys(picks.alerts)]);
+      const items = [...haList.items].sort((a, b) => (picked.has(b.id) - picked.has(a.id)) || a.name.localeCompare(b.name));
+      const opts = (id) => ALERT_CHOICES.map(c => `<option value="${c.value}"${String(picks.alerts[id] ?? '') === c.value ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+      body += `<details${picked.size ? '' : ' open'}><summary>Choose what the TV shows (${picks.show.length} shown, ${Object.keys(picks.alerts).length} with alerts)</summary>
+        <p class="muted small">Tick up to 12 for the Home strip on the TV. An alert shows full screen on the TV when a door opens, a lock is left unlocked, the doorbell rings, a leak or smoke sensor goes off, and so on. Smoke, gas, carbon monoxide and water alerts chime even in quiet hours.</p>
+        <input id="hafilter" placeholder="Search ${haList.items.length} devices" style="width:100%;margin:6px 0 10px">
+        <form method="post" action="/setup/ha/picks"><ul class="devices" id="halist">${items.map(e => `<li data-name="${esc((e.name + ' ' + e.id).toLowerCase())}">
+          <label style="flex:1;display:flex;gap:10px;align-items:center"><input type="checkbox" name="show" value="${esc(e.id)}"${picks.show.includes(e.id) ? ' checked' : ''}>
+          <span>${esc(e.name)} <small>${esc(e.state)} · ${esc(e.id)}</small></span></label>
+          <select name="alert:${esc(e.id)}">${opts(e.id)}</select></li>`).join('')}</ul>
+          <p><button>Save</button></p></form>
+        <script>
+          document.getElementById('hafilter').addEventListener('input', (ev) => {
+            const q = ev.target.value.trim().toLowerCase();
+            for (const li of document.querySelectorAll('#halist li')) li.style.display = !q || li.dataset.name.includes(q) ? '' : 'none';
+          });
+          document.querySelector('#halist').closest('form').addEventListener('submit', (ev) => {
+            if (document.querySelectorAll('#halist input[name=show]:checked').length > 12) { ev.preventDefault(); alert('Pick up to 12 to show on the TV.'); }
+          });
+        </script></details>`;
+    }
+    return section('ha', st.connected ? true : st.problem ? false : null, 'Home Assistant (optional)', body);
+  }
+
   app.post('/setup/restart', homeOnly, (req, res) => {
     log('[Setup] Restart requested from the setup page.');
     res.type('html').send('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10;url=/setup"><body style="font:18px system-ui;padding:40px">Restarting... this page reloads in a few seconds.</body>');
@@ -161,7 +260,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
   });
 
   // the sections, built per request
-  return (req) => {
+  return async (req) => {
     const s = updater.status;
     const parts = [];
     let ok = null;
@@ -211,6 +310,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
       <p class="muted small">Getting a key: Gemini at aistudio.google.com (has a free tier), Claude at console.anthropic.com, OpenAI at platform.openai.com. The key stays in config.txt on this computer.</p>`;
     if (ai.configured) aiBody += '</details>';
     parts.push(section('ai', ai.configured ? true : null, 'AI (optional)', aiBody));
+    parts.push(await haSection());
 
     let tools = `<div class="row"><a href="/setup/log" target="_blank">Show the server log</a>`;
     if (onThisComputer(req)) tools += `<form method="post" action="/setup/open-folder" class="inline"><button class="quiet">Show settings folder</button></form>`;

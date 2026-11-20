@@ -25,3 +25,8 @@ ALPHAPORTAL_REFRESH_TOKEN=
 # AI (optional): gemini, claude or openai, and your own key. AI_MODEL is optional.
 AI_PROVIDER=
 AI_API_KEY=
+
+# Home Assistant (optional, read-only): its address and a long-lived access token.
+# Easier from the setup page, which also picks what the TV shows (home-assistant.json).
+HA_URL=
+HA_TOKEN=

@@ -45,6 +45,14 @@ grocery list and meal plan (using your pantry staples and what you just bought) 
 **Brain dump** on its Today screen. Requests go from your server straight to the company
 you chose; nothing is saved until you confirm it.
 
+## Home Assistant (optional)
+
+If your home runs Home Assistant, open the setup page's **Home Assistant** section, paste its
+address (like `http://homeassistant.local:8123`) and a long-lived access token (in Home
+Assistant: your profile, **Security** tab, **Create token**). Then pick what the TV shows and
+which devices alert the family: the doorbell, a garage left open, a leak. It only reads; it
+never controls anything. The token stays in `config.txt`; your picks are in `home-assistant.json`.
+
 ## Android TV
 
 The Family Dashboard Android app also runs on Android TV. On the TV it finds this server

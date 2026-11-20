@@ -3,6 +3,7 @@ config.txt
 .env
 household.json
 calendar-filters.json
+home-assistant.json
 *firebase-adminsdk*.json
 node_modules/
 firebase-app.json
