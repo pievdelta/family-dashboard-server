@@ -37,6 +37,22 @@ the wall, a laptop, or a phone. It shows the same Today, calendar, weather, trav
 chores screens as the TV, and kids can tap a chore to check it off. On a tablet, use
 **Add to Home Screen** so it opens full screen, and turn off auto-lock to keep it on.
 
+## The TV page (any smart TV)
+
+Open `http://<server address>:3000/tv` in a TV's web browser, or in a small TV app that
+opens it, for a screen made for a remote: a Home screen of cards, and OK on a card opens
+its section (calendar, weather, travel, chores, lists, Home Assistant). The arrows move,
+Back goes back. It is drawn at 1920 x 1080 and scaled to fit, so nothing scrolls off the
+screen, and it runs on LG webOS and Samsung Tizen TVs from about 2019 on, as well as
+Android TV and Fire TV. Add `?demo=1` to see a made-up family.
+
+**Each TV gets its own layout.** A TV that opens the page shows up on the setup page under
+**TVs**. Name it ("Kitchen", "Bedroom") and pick a layout: **Whole house**, **Parents**
+(to-dos, groceries, meals, no chores), **Kids** (chores, the bus, no to-dos) or your own,
+with the cards and sections you choose. A layout can also show one parent's private to-dos,
+for the TV in your bedroom. The Roku app uses the same layouts from version 4.5. The list
+of TVs is kept in `tvs.json`.
+
 ## AI features (optional)
 
 Add your own key from Google AI Studio (Gemini, with a free tier), Anthropic (Claude) or
@@ -180,7 +196,7 @@ in `household.json` with `"hasBus": true` who is set to ride the bus that day.
 
 ## Keep private
 
-`config.txt`, `household.json`, `firebase-app.json` and the Firebase key file hold
+`config.txt`, `household.json`, `firebase-app.json`, `home-assistant.json`, `tvs.json` and the Firebase key file hold
 your secrets and your address. They are listed in `.gitignore`. Leave them out of anything you share.
 
 The server has no password. Run it only on your home network and do not

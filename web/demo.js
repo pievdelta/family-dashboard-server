@@ -156,15 +156,32 @@
         { id: 'climate.hallway', name: 'Thermostat', state: '70° · Heating', icon: 'temp', attention: false },
         { id: 'binary_sensor.back_door', name: 'Back door', state: 'Closed', icon: 'door', attention: false }
       ],
+      // what a TV may show from the lists (server 5.11)
+      display: new URLSearchParams(location.search).get('tv') || location.pathname === '/tv' ? { id: 'demo-tv', name: 'Living room', profileId: 'house' } : null,
+      layout: { cards: ['next', 'today', 'weather', 'travel', 'chores', 'todos', 'groceries', 'meals', 'home'], sections: ['calendar', 'weather', 'travel', 'chores', 'lists', 'home'] },
+      lists: {
+        todos: { today: [{ id: 't1', title: 'Call the plumber', who: 'Dana', private: false }, { id: 't2', title: 'Sign the field trip form', who: 'Both', private: false }],
+          anytime: [{ id: 't3', title: 'Renew car registration', who: 'Sam', private: false }, { id: 't4', title: 'Book summer camp', who: 'Both', private: false }, { id: 't5', title: 'Replace the porch light', who: 'Sam', private: false }], count: 5 },
+        groceries: { toBuy: ['Milk', 'Eggs', 'Bananas', 'Bread', 'Chicken thighs', 'Tortillas', 'Shredded cheese', 'Apples', 'Coffee', 'Paper towels'].map((name, i) => ({ id: `g${i}`, name })), count: 10 },
+        meals: (() => {
+          const dinners = ['Chicken tacos', 'Spaghetti and meatballs', '', 'Sheet-pan salmon', 'Homemade pizza', '', 'Slow cooker chili'];
+          const week = dinners.map((name, i) => { const d = addDays(now, i); return { date: iso(d), label: i === 0 ? 'Tonight' : i === 1 ? 'Tomorrow' : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()], meals: name ? [{ meal: 'dinner', name, time: null }] : [] }; });
+          return { week, tonight: week[0].meals, today: iso(now) };
+        })()
+      },
       serverTime: Math.floor(nowMs / 1000), serverVersion: 'demo', demo: true
     };
   }
 
   function fullMap(q) {
     const zoom = q.get('zoom') && q.get('zoom') !== 'auto' ? Number(q.get('zoom')) : 15;
-    return { zoom, tileSize: 256, originX: -40, originY: -30, cols: 8, rows: 5,
-      tiles: [...Array(40).keys()].map(i => `${TILE}/osm-${i}.png`),
-      pins: [{ kind: 'home', label: 'Home', color: '0xF8FAFCFF', x: 1180, y: 700 }, { kind: 'bus', label: 'Bus', color: '0x22C55EFF', x: 760, y: 420 }],
+    const width = Math.max(320, Number(q.get('w')) || 1920), height = Math.max(240, Number(q.get('h')) || 1080);
+    const cols = Math.ceil((width + 80) / 256), rows = Math.ceil((height + 60) / 256);
+    const tiles = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) tiles.push(`${TILE}/osm-${(r % 5) * 8 + (c % 8)}.png`);
+    return { zoom, tileSize: 256, width, height, originX: -40, originY: -30, cols, rows, tiles,
+      pins: [{ kind: 'home', label: 'Home', color: '0xF8FAFCFF', x: Math.round(width * 0.6), y: Math.round(height * 0.62) },
+        { kind: 'bus', label: 'Bus', color: '0x22C55EFF', x: Math.round(width * 0.4), y: Math.round(height * 0.4) }],
       title: 'School bus for Maya', status: '1,500 ft away', detail: 'Afternoon bus  ·  just now', live: true, who: q.get('who') || 'maya' };
   }
 

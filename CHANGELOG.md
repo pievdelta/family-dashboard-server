@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.11.0
+
+- **The TV page** at `/tv`: Family Dashboard for a remote, on LG webOS, Samsung Tizen, Android TV, Fire TV or any TV browser. A Home screen of cards; OK opens Calendar (agenda, week, month), Weather (with full-screen radar), Travel (with a full-screen map), Chores (mark one done, and pick who did a bounty), Lists and Home. Back goes back, and after three minutes without the remote it returns to Home. It's drawn at 1920 x 1080 and scaled to fit, so it never scrolls or stretches.
+- **Each TV gets its own layout**: TVs show up on the setup page under **TVs**. Name each one and pick Whole house, Parents, Kids or your own layout (which cards are on Home, which sections open). A layout can show one parent's private to-dos, for a bedroom TV. Layouts are shared with the app through Firebase, ready for app 2.9 and Roku 4.5.
+- **To-dos, groceries and the meal plan for TVs**: the dashboard now includes the adults' to-dos (today's and anytime), the grocery list, and the week's meals. Private to-dos only reach a TV whose layout allows them.
+- Maps no longer stretch on screens that aren't 16:9: full-screen maps are built for the screen's real size.
+
 ## 5.10.0
 
 - **Food allergies** (app 2.7): enter them for anyone, kids and adults. Meal ideas treat them as strict: the AI is told never to use them, and the server double-checks every idea and flags any that look like they contain one ("May contain peanuts (Leo). Check before you cook."), listing safe ideas first. The check is a second look, not a guarantee.

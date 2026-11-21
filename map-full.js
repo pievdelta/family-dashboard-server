@@ -1,4 +1,5 @@
-// A full-screen map for the TV: enough 256 px map tiles to cover 1920 x 1080,
+// A full-screen map: enough 256 px map tiles to cover the screen (1920 x 1080 for the
+// Roku, or whatever size a browser asks for, so it never has to stretch),
 // placed so every point of interest (the bus, home, the next stop) is on
 // screen. With zoom "auto" it picks the closest zoom that still fits them all.
 
@@ -17,7 +18,12 @@ function worldPixel(lat, lon, z) {
  * zoom:   a number (10-18) or 'auto'
  * Returns tile urls in row order plus where each point lands on screen.
  */
-export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 1080, tileUrl, roomX = 520, roomY = 380 }) {
+export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 1080, tileUrl, roomX = null, roomY = null }) {
+  width = Math.round(Math.min(3840, Math.max(320, Number(width) || 1920)));
+  height = Math.round(Math.min(2160, Math.max(240, Number(height) || 1080)));
+  // room for the labels and the title card, in proportion on smaller screens
+  roomX = roomX ?? Math.min(520, width * 0.27);
+  roomY = roomY ?? Math.min(380, height * 0.35);
   const usable = points.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon) && (p.lat || p.lon));
   if (!usable.length) return null;
 
@@ -39,7 +45,7 @@ export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 108
   const px = usable.map(p => worldPixel(p.lat, p.lon, z));
   const cx = (Math.max(...px.map(p => p.x)) + Math.min(...px.map(p => p.x))) / 2;
   // nudge the middle down a little: the top of the screen holds the title card
-  const cy = (Math.max(...px.map(p => p.y)) + Math.min(...px.map(p => p.y))) / 2 - 60;
+  const cy = (Math.max(...px.map(p => p.y)) + Math.min(...px.map(p => p.y))) / 2 - Math.min(60, height * 0.055);
 
   const left = cx - width / 2;
   const top = cy - height / 2;
@@ -68,5 +74,5 @@ export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 108
     y: Math.round(px[i].y - top)
   }));
 
-  return { zoom: z, tileSize: TILE, originX, originY, cols, rows, tiles, pins };
+  return { zoom: z, tileSize: TILE, width, height, originX, originY, cols, rows, tiles, pins };
 }

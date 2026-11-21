@@ -4,6 +4,7 @@ config.txt
 household.json
 calendar-filters.json
 home-assistant.json
+tvs.json
 *firebase-adminsdk*.json
 node_modules/
 firebase-app.json

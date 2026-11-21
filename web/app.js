@@ -377,9 +377,11 @@
   }
 
   // ---- full-screen and travel maps ------------------------------------------------------------
-  async function fetchMap(who, zoom) {
+  async function fetchMap(who, zoom, el) {
     const q = new URLSearchParams({ zoom: String(zoom || 'auto') });
     if (who) q.set('who', who);
+    // the map is built for this box's real size, so it never stretches
+    if (el && el.clientWidth > 50 && el.clientHeight > 50) { q.set('w', String(el.clientWidth)); q.set('h', String(el.clientHeight)); }
     const res = await fetch('/api/map/full?' + q, { cache: 'no-store' });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(j.error || 'The map needs server 5.1 or newer.');
@@ -387,7 +389,7 @@
   }
   function paintMap(el, m, tools) {
     if (!el) return;
-    const W = 1920, H = 1080, size = m.tileSize || 256, cols = m.cols || 1;
+    const W = m.width || 1920, H = m.height || 1080, size = m.tileSize || 256, cols = m.cols || 1;
     const tiles = (m.tiles || []).map((t, i) => t ? `<img alt="" src="${esc(t)}" style="left:${((m.originX + (i % cols) * size) / W) * 100}%;top:${((m.originY + Math.floor(i / cols) * size) / H) * 100}%;width:${(size / W) * 100 + 0.05}%;height:${(size / H) * 100 + 0.08}%">` : '').join('');
     const pins = (m.pins || []).map(p => `<div class="pin ${p.kind === 'home' ? 'home' : ''}" style="left:${(p.x / W) * 100}%;top:${(p.y / H) * 100}%"><i style="${p.kind === 'home' ? '' : `background:${css(p.color)}`}"></i>${p.label ? `<span>${esc(p.label)}</span>` : ''}</div>`).join('');
     el.innerHTML = tiles + '<div class="wash"></div>' + pins + '<span class="attrib">© OpenStreetMap</span>' +
@@ -397,7 +399,7 @@
   async function loadMap(who, el, tools = true) {
     try {
       if (state.mapWho !== who) { state.mapZoom = 'auto'; state.mapWho = who; }
-      const m = await fetchMap(who, state.mapZoom);
+      const m = await fetchMap(who, state.mapZoom, el);
       paintMap(el, m, tools);
       return m;
     } catch (e) {
@@ -429,6 +431,9 @@
       }
     };
     await paint();
+    // turned the tablet, resized the window: rebuild for the new shape instead of stretching
+    let resizeTimer = null;
+    window.onresize = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!$('#overlay').hidden && $('#fullMap')) paint(); }, 300); };
     clearInterval(fullMapTimer);
     fullMapTimer = setInterval(() => { if (!$('#overlay').hidden && $('#fullMap')) paint(); else clearInterval(fullMapTimer); }, 15000);
   }

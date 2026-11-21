@@ -17,6 +17,10 @@ import { createUpdater } from './updater.js';
 import { setupExtras } from './setup-extras.js';
 import { startAI, aiSettings } from './ai.js';
 import { startHomeAssistant } from './home-assistant.js';
+import { createDisplays, buildLists, BUILT_IN_PROFILES } from './displays.js';
+
+// what a screen that isn't a named TV shows (a browser, an older Roku)
+const TV_DEFAULT_LAYOUT = BUILT_IN_PROFILES.house;
 
 if (fs.existsSync('./config.txt')) {
   dotenv.config({ path: './config.txt' });
@@ -92,6 +96,7 @@ function memberDefaultMode(m) {
 const nyIsoFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const nyHmFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12: false, hour: '2-digit', minute: '2-digit' });
 const nyWkFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
+const nyWeekdayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long' });
 const nyMonShortFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short' });
 const nyMonFullFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'long', year: 'numeric' });
 const nyDateLblFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' });
@@ -636,13 +641,13 @@ function earnedLabelFor(points, minutes) {
 // Live copies of the family's Firebase data. Listeners keep them current, so a
 // change in the app reaches the TV in a second or two and Firebase only counts
 // reads when something actually changes.
-const liveData = { chores: [], users: [], ledger: [], todos: [], meals: [], loaded: false };
+const liveData = { chores: [], users: [], ledger: [], todos: [], meals: [], groceries: [], loaded: false };
 
 function startLiveData() {
   if (!db) return;
   const root = db.collection('households').doc(householdId);
   const pending = new Set(['chores', 'users', 'ledger', 'todos']);
-  for (const name of ['chores', 'users', 'ledger', 'todos', 'meals']) {
+  for (const name of ['chores', 'users', 'ledger', 'todos', 'meals', 'groceries']) {
     root.collection(name).onSnapshot((snap) => {
       liveData[name] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       pending.delete(name);
@@ -1525,11 +1530,16 @@ function buildAlerts() {
 const WEB_DIR = fileURLToPath(new URL('./web/', import.meta.url));
 app.use('/web', express.static(WEB_DIR, { maxAge: '5m' }));
 app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
+// the TV page: Android TV, Fire TV, LG webOS, Samsung Tizen, or any browser on a TV
+app.get('/tv', (req, res) => res.sendFile(path.join(WEB_DIR, 'tv.html')));
 app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').sendFile(path.join(WEB_DIR, 'manifest.webmanifest')));
 
 app.get('/api/dashboard', (req, res) => {
   try {
     const hostHeader = req.headers.host || `localhost:${PORT}`;
+    // a TV says which one it is (?tv=...); it gets its own layout and lists
+    const display = displays.seen(req.query, req.ip);
+    const layout = display?.profile || TV_DEFAULT_LAYOUT;
     const zoom = Number(req.query.zoom || 15);
     expireTransportModes();
 
@@ -1674,6 +1684,9 @@ app.get('/api/dashboard', (req, res) => {
       calendarTotal: calendarData.listTotal,
       calendarViews: calendarData,
       home: homeAssistant.homeStrip(),
+      display: display ? { id: display.id, name: display.name, profileId: display.profileId } : null,
+      layout: { cards: layout.cards, sections: layout.sections },
+      lists: buildLists({ ...liveData, profile: layout, isoOf: toNyIsoDate, dayName: (d) => nyWeekdayFmt.format(d) }),
       alerts: buildAlerts()
     });
   } catch (err) {
@@ -1718,6 +1731,8 @@ app.get('/api/map/full', (req, res) => {
   const map = buildFullMap({
     points,
     zoom: req.query.zoom || 'auto',
+    // a browser sends its own size so the map fits instead of stretching; the Roku keeps 1920 x 1080
+    width: req.query.w, height: req.query.h,
     tileUrl: (z, x, y) => `http://${hostHeader}/api/tile?type=osm&z=${z}&x=${x}&y=${y}`
   });
   if (!map) return res.status(404).json({ error: 'Home isn\'t set in household.json, so there\'s nothing to show yet.' });
@@ -1727,9 +1742,15 @@ app.get('/api/map/full', (req, res) => {
 // ---- pairing, app settings and chores from the TV (server 5.0) ------------------------
 
 const updater = createUpdater({ version: SERVER_VERSION, repo: UPDATE_REPO === 'off' ? '' : UPDATE_REPO, requestRestart });
+// Each TV's own layout (tvs.json, shared with the app through Firebase)
+const displays = createDisplays({ file: path.join(process.cwd(), 'tvs.json') });
+
 // Home Assistant (optional, read-only): picked devices on the TV and alerts when they need someone
 const homeAssistant = startHomeAssistant({ picksFile: path.join(process.cwd(), 'home-assistant.json') });
-const setupSections = setupExtras(app, { updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant });
+const setupSections = setupExtras(app, {
+  updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant, displays,
+  parents: () => liveData.users.filter(u => String(u.role || '').toUpperCase() === 'PARENT' && u.name).map(u => ({ id: u.id, name: u.name }))
+});
 
 setupPairing(app, {
   extras: setupSections,
@@ -1838,6 +1859,7 @@ async function startFamilyCloud() {
     startHealthReports(root);
     startAgendaSync(root);
     startTidy(root);
+    displays.attachCloud(root);
     const fakeAI = process.env.FD_FAKE_AI ? (await import('./test/fake-ai.mjs')).fakeAsk : undefined;
     aiStatus = startAI({ root, context: (req) => aiContext(root, req), ...(fakeAI ? { ask: fakeAI, settings: { configured: true, provider: 'gemini', providerName: 'Test AI', model: 'fake', key: 'x' } } : {}) });
   } catch (e) {

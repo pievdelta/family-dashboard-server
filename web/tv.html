@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Dashboard</title>
+<link rel="icon" href="/web/icon-192.png">
+<link rel="stylesheet" href="/web/tv.css">
+</head>
+<body>
+<!-- The TV page: a fixed 1920 x 1080 screen, scaled to fit any TV, run with a remote.
+     For Android TV, Fire TV, LG webOS, Samsung Tizen, or any browser at /tv. -->
+<div id="stage">
+  <header id="top">
+    <div class="crumb" id="crumb">Home</div>
+    <div class="clock"><span id="date"></span><b id="clock"></b></div>
+  </header>
+  <main id="screen"></main>
+  <footer id="hint"></footer>
+  <div id="layer" hidden></div>
+  <div id="alert" hidden></div>
+</div>
+<script src="/web/demo.js"></script>
+<script src="/web/tv.js"></script>
+</body>
+</html>

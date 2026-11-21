@@ -9,6 +9,7 @@ import { homeOnly } from './pairing.js';
 import { updateConfigFile } from './cloud-config.js';
 import { aiSettings, askAI, AI_PROVIDERS } from './ai.js';
 import { haSettings, testConnection, listEntities, readPicks, savePicks, ALERT_CHOICES } from './home-assistant.js';
+import { CARDS, SECTIONS, BUILT_IN_PROFILES } from './displays.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const form = express.urlencoded({ extended: false, limit: '10kb' });
@@ -54,7 +55,7 @@ function tail(file, lines) {
   }
 }
 
-export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, log = console.log }) {
+export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, displays = null, parents = () => [], log = console.log }) {
   const logFile = path.join(dataDir, 'logs', 'server.log');
   let installError = null;
 
@@ -78,7 +79,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
   });
 
   // settings files from an older copy (a folder run with npm start), chosen in the browser
-  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json'];
+  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json', 'tvs.json'];
   let importNote = null;
   app.post('/setup/import', homeOnly, express.json({ limit: '2mb' }), (req, res) => {
     const files = req.body?.files || {};
@@ -240,6 +241,77 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     return section('ha', st.connected ? true : st.problem ? false : null, 'Home Assistant (optional)', body);
   }
 
+  // ---- TVs: name each one and pick its layout
+  let tvNote = null;
+  const tvForm = express.urlencoded({ extended: false, limit: '50kb', parameterLimit: 2000 });
+  const list = (v) => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map(String);
+
+  app.post('/setup/tvs', homeOnly, tvForm, (req, res) => {
+    if (!displays) return res.redirect('/setup#tvs');
+    if (req.body?.remove) {
+      displays.removeDisplay(String(req.body.remove));
+      tvNote = 'Removed. If that TV turns on again, it shows up here as new.';
+    } else {
+      for (const d of displays.list()) {
+        displays.setDisplay(d.id, { name: req.body?.[`name:${d.id}`], profile: req.body?.[`profile:${d.id}`] });
+      }
+      tvNote = 'Saved. Each TV picks up its layout within a few seconds.';
+    }
+    log('[Setup] TVs updated.');
+    res.redirect('/setup#tvs');
+  });
+
+  app.post('/setup/layouts', homeOnly, tvForm, (req, res) => {
+    if (!displays) return res.redirect('/setup#tvs');
+    const b = req.body || {};
+    if (b.add) {
+      displays.saveProfile(null, { name: 'New layout', cards: BUILT_IN_PROFILES.house.cards, sections: BUILT_IN_PROFILES.house.sections });
+      tvNote = 'Added a layout below. Name it and pick what it shows.';
+    } else if (b.removeProfile) {
+      tvNote = displays.removeProfile(String(b.removeProfile)) ? 'Layout removed. TVs that used it show the whole house now.' : 'That layout can\'t be removed.';
+    } else if (b.profile) {
+      displays.saveProfile(String(b.profile), { name: b.name, cards: list(b.cards), sections: list(b.sections), privateTodosOf: list(b.privateTodosOf) });
+      tvNote = `Saved the "${String(b.name || '').trim() || 'layout'}" layout.`;
+    }
+    res.redirect('/setup#tvs');
+  });
+
+  function tvsSection() {
+    if (!displays) return '';
+    const st = displays.state;
+    const tvs = displays.list();
+    const ago = (t) => {
+      const m = Math.round((Date.now() - (t || 0)) / 60000);
+      return m < 15 ? 'on now' : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} hours ago` : `${Math.round(m / 1440)} days ago`;
+    };
+    const profileOpts = (sel) => Object.entries(st.profiles).map(([id, p]) => `<option value="${esc(id)}"${id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+    let body = '<p>Each TV can show its own Home screen: the kitchen with the bus and chores, the bedroom with your to-dos and no chores. TVs show up here the first time they open Family Dashboard (Roku 4.5 or newer, and the TV page).</p>';
+    if (tvNote) body += `<p><b>${esc(tvNote)}</b></p>`;
+    if (!tvs.length) {
+      body += '<p class="muted">No TVs yet. Until a TV shows up here, every screen uses the whole-house layout.</p>';
+    } else {
+      body += `<form method="post" action="/setup/tvs"><ul class="devices">${tvs.map(d => `<li>
+        <input name="name:${esc(d.id)}" value="${esc(d.name)}" maxlength="40" style="flex:1;min-width:150px" aria-label="TV name">
+        <select name="profile:${esc(d.id)}" aria-label="Layout">${profileOpts(d.profile)}</select>
+        <small style="min-width:110px">${esc(d.kind === 'roku' ? 'Roku' : d.kind === 'android-tv' ? 'Android TV' : 'TV page')} · ${esc(ago(d.lastSeen))}</small>
+        <button class="quiet" name="remove" value="${esc(d.id)}" formnovalidate>Remove</button></li>`).join('')}</ul>
+        <p><button>Save TVs</button></p></form>`;
+    }
+    const people = parents();
+    body += `<details><summary>Layouts (${Object.keys(st.profiles).length})</summary>
+      <p class="muted small">A layout picks the cards on Home, in this order, and which screens can be opened. Private to-dos only show on a TV whose layout includes that parent.</p>
+      ${Object.entries(st.profiles).map(([id, p]) => `<form method="post" action="/setup/layouts" style="border-top:1px solid #8883;padding-top:10px;margin-top:10px">
+        <input type="hidden" name="profile" value="${esc(id)}">
+        <div class="row"><input name="name" value="${esc(p.name)}" maxlength="40" aria-label="Layout name" style="flex:1"><button>Save</button>
+        ${BUILT_IN_PROFILES[id] ? '' : `<button class="quiet" name="removeProfile" value="${esc(id)}" formnovalidate>Remove</button>`}</div>
+        <p class="small"><b>Home cards</b><br>${CARDS.map(c => `<label style="display:inline-flex;gap:6px;margin:4px 14px 4px 0"><input type="checkbox" name="cards" value="${c.id}"${(p.cards || []).includes(c.id) ? ' checked' : ''}>${esc(c.name)}</label>`).join('')}</p>
+        <p class="small"><b>Screens</b><br>${SECTIONS.map(c => `<label style="display:inline-flex;gap:6px;margin:4px 14px 4px 0"><input type="checkbox" name="sections" value="${c.id}"${(p.sections || []).includes(c.id) ? ' checked' : ''}>${esc(c.name)}</label>`).join('')}</p>
+        ${people.length ? `<p class="small"><b>Private to-dos</b><br>${people.map(m => `<label style="display:inline-flex;gap:6px;margin:4px 14px 4px 0"><input type="checkbox" name="privateTodosOf" value="${esc(m.id)}"${(p.privateTodosOf || []).includes(m.id) ? ' checked' : ''}>${esc(m.name)}'s</label>`).join('')}</p>` : ''}
+      </form>`).join('')}
+      <form method="post" action="/setup/layouts" style="margin-top:12px"><button class="quiet" name="add" value="1">Add a layout</button></form></details>`;
+    return section('tvs', tvs.length ? true : null, 'TVs', body);
+  }
+
   app.post('/setup/restart', homeOnly, (req, res) => {
     log('[Setup] Restart requested from the setup page.');
     res.type('html').send('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10;url=/setup"><body style="font:18px system-ui;padding:40px">Restarting... this page reloads in a few seconds.</body>');
@@ -311,6 +383,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     if (ai.configured) aiBody += '</details>';
     parts.push(section('ai', ai.configured ? true : null, 'AI (optional)', aiBody));
     parts.push(await haSection());
+    parts.push(tvsSection());
 
     let tools = `<div class="row"><a href="/setup/log" target="_blank">Show the server log</a>`;
     if (onThisComputer(req)) tools += `<form method="post" action="/setup/open-folder" class="inline"><button class="quiet">Show settings folder</button></form>`;

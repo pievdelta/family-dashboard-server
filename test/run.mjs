@@ -153,6 +153,55 @@ await test('allergies are strict in the prompt and flagged in ideas', async () =
   assert.equal(allergyWarning({ name: 'Eggplant', ingredients: ['butternut squash', 'peanut-free sauce'] }, [{ name: 'D', items: ['Eggs', 'Milk'] }]), null);
 });
 
+await test('each TV gets its own layout, and edits from the app come back', async () => {
+  const { createDisplays, buildLists, cleanProfile } = await import('../displays.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-tvs-'));
+  process.env.FAKE_FIREBASE_DB = path.join(dir, 'db.json');
+  const { firestore } = await import('./fake-firebase.mjs');
+  const root = firestore().collection('households').doc('h');
+  let t = 1000;
+  const tv = createDisplays({ file: path.join(dir, 'tvs.json'), log: () => {}, now: () => t });
+  assert.equal(tv.seen({}), null, 'a browser that is not a TV is not listed');
+  assert.equal(tv.seen({ tv: 'x' }), null, 'ids are checked');
+  const first = tv.seen({ tv: 'roku-1', tvKind: 'roku', tvModel: 'Roku Ultra' });
+  assert.equal(first.name, 'Roku Ultra'); assert.equal(first.profileId, 'house');
+  assert.equal(tv.seen({ tv: 'roku-2', tvKind: 'roku', tvModel: 'Roku Ultra' }).name, 'Roku Ultra 2');
+  tv.attachCloud(root);
+  await new Promise(r => setTimeout(r, 700));
+  assert.equal((await root.collection('config').doc('tvs').get()).data().displays['roku-1'].name, 'Roku Ultra', 'shared with the app');
+  // the app renames one and switches it to the parents layout
+  const remote = (await root.collection('config').doc('tvs').get()).data();
+  remote.displays['roku-1'].name = 'Bedroom'; remote.displays['roku-1'].profile = 'parents';
+  await root.collection('config').doc('tvs').set({ ...remote, by: 'app', updatedAt: t + 5000 });
+  await new Promise(r => setTimeout(r, 50));
+  const after = tv.seen({ tv: 'roku-1' });
+  assert.equal(after.name, 'Bedroom'); assert.equal(after.profileId, 'parents');
+  assert.ok(!after.profile.cards.includes('chores'), 'parents layout has no chores');
+  assert.deepEqual(cleanProfile({ cards: ['weather', 'bogus', 'weather'], sections: ['lists'] }).cards, ['weather']);
+
+  const now = new Date(2026, 10, 21, 12, 0, 0);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const lists = buildLists({
+    todos: [
+      { id: 'a', title: 'Overdue', ownerId: 'p1', dueAt: now.getTime() - 3 * 86400000 },
+      { id: 'b', title: 'Anytime', ownerId: null },
+      { id: 'c', title: 'Secret', ownerId: 'p1', private: true },
+      { id: 'd', title: 'Next week', ownerId: 'p1', dueAt: now.getTime() + 7 * 86400000 },
+      { id: 'e', title: 'Finished', done: true }
+    ],
+    groceries: [{ id: 'g', name: 'milk' }, { id: 'h', name: 'eggs', done: true }],
+    meals: [{ date: iso(now), name: 'Tacos' }],
+    users: [{ id: 'p1', name: 'Sam' }],
+    profile: { privateTodosOf: [] }, now, isoOf: iso, dayName: () => 'Day'
+  });
+  assert.deepEqual(lists.todos.today.map(x => x.title), ['Overdue'], 'overdue shows as today');
+  assert.deepEqual(lists.todos.anytime.map(x => [x.title, x.who]), [['Anytime', 'Both']]);
+  assert.deepEqual(lists.groceries.toBuy.map(x => x.name), ['milk']);
+  assert.equal(lists.meals.tonight[0].name, 'Tacos'); assert.equal(lists.meals.week.length, 7);
+  const parents = buildLists({ todos: [{ id: 'c', title: 'Secret', ownerId: 'p1', private: true }], profile: { privateTodosOf: ['p1'] }, now, isoOf: iso, dayName: () => '' });
+  assert.equal(parents.todos.anytime[0].title, 'Secret', 'private to-dos only where allowed');
+});
+
 await test('server starts and answers', async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-test-'));
   fs.copyFileSync(path.join(root, 'household.example.json'), path.join(data, 'household.json'));
