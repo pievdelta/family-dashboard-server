@@ -218,6 +218,7 @@ build machine (see `installer/macos/build-pkg.sh`).
 
 - [Getting help](SUPPORT.md)
 - [Privacy Policy](PRIVACY.md)
+- [Terms of Use](TERMS.md)
 
 ## License
 
