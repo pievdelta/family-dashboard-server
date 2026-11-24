@@ -76,6 +76,25 @@ or the phone app, delete your Firebase project in the Firebase console, and unin
 apps and server at any time. Because we never receive your data, there is nothing for us to
 delete.
 
+## Delete your data
+
+This is how to delete what **Family Dashboard** (the Android, Android TV, Fire TV and Roku apps
+and the Family Dashboard Server) keeps. The developer holds none of your data, so there is no
+request to send: you delete it yourself, and it's gone right away.
+
+1. **One person or item:** in the Android app, open parent mode and delete the person, chore,
+   to-do, grocery, meal or allergy. It's removed from your Firebase project and the TV.
+2. **One phone or TV:** in the app's TV tab, remove the device from Paired devices or Your TVs,
+   then uninstall the app from it. Uninstalling also removes everything the app kept on that device.
+3. **Everything:** delete your Firebase project in the Firebase console
+   (console.firebase.google.com > Project settings > Delete project). That removes all chores,
+   rewards, to-dos, lists, meal plans, names, allergies and paired devices. Then uninstall the
+   server and delete its folder, which holds your settings, calendar links and keys.
+
+Nothing is kept afterward by us. Google deletes a Firebase project 30 days after you delete
+it, under Google's own policy. AI companies you used keep requests under the terms of your own
+account with them.
+
 ## Changes
 
 If this policy changes, the new version will be posted here with a new effective date.
