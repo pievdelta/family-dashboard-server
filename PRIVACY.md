@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Effective November 20, 2026*
+*Effective November 24, 2026*
 
 This policy covers the **Family Dashboard** app for Roku, the **Family Dashboard Server**,
 and the **Family Dashboard** app for Android and Android TV (first released as Chore Bounty Board) (together, "Family Dashboard").
@@ -20,7 +20,8 @@ does not send anything to us or to anyone else.
 
 **Family Dashboard Server.** Runs on a computer you own. It keeps your settings (family
 members' names and colors, places, calendar links and keys you enter) in files on that
-computer. To build the dashboard, it contacts these services directly from your home:
+computer, along with the TVs that have opened the dashboard (a random ID, model name, the
+name you give each TV, and when it was last on). To build the dashboard, it contacts these services directly from your home:
 
 | Service | Why | What it receives |
 |---|---|---|
@@ -39,8 +40,18 @@ them and do not receive what they receive.
 **Android app.** Stores chores, rewards, to-dos, the grocery list, pantry staples, the meal plan, family member names and any food allergies you enter in the
 Firebase project you connected to your server. Private to-dos stay with the parent who wrote
 them. The app pairs with your server once on your home network and then talks directly to
-your Firebase project. On an Android TV, the app doesn't pair or sign in: like the Roku
-app, it finds the server on your home network and shows its dashboard.
+your Firebase project. It also keeps the names and layouts you give your TVs there.
+
+The camera is used only to scan the pairing QR code on your server's setup page; no picture
+is saved or sent anywhere. The app works without the camera if you type the code instead.
+
+Another app on the same phone (for example AllergyCompass) can ask for your family's food
+allergies. Nothing is shared unless a parent approves that request on the phone, and then only
+the names and allergies the parent picks go to that app, on the device, never to us.
+
+On an Android TV or Fire TV, the app doesn't pair or sign in: like the Roku app, it finds the
+server on your home network and shows its dashboard. It gives the server a random ID for the
+TV and the TV's model name, so a parent can name the TV and choose what it shows.
 
 ## AI features
 
