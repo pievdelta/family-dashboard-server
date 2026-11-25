@@ -53,6 +53,30 @@ with the cards and sections you choose. A layout can also show one parent's priv
 for the TV in your bedroom. The Roku app uses the same layouts from version 4.5. The list
 of TVs is kept in `tvs.json`.
 
+## Music on the TVs (optional)
+
+Play music from a phone to every TV showing Family Dashboard, while the dashboard stays on
+screen. The server shows up as a speaker called **Family Dashboard** in the Spotify app and in
+AirPlay, and each TV plays along (the TV page now; the Roku app from version 4.5).
+
+1. Install the free programs for the services you want, on the server's computer. On a Mac with
+   [Homebrew](https://brew.sh):
+   - Spotify: `brew install go-librespot` ([go-librespot](https://github.com/devgianlu/go-librespot), needs Spotify Premium)
+   - AirPlay: `brew install shairport-sync` ([shairport-sync](https://github.com/mikebrady/shairport-sync), iPhone, iPad and Mac)
+
+   On Linux, use your package manager, or put either program in an `addons` folder next to `config.txt`.
+2. On the setup page, open **Music**, pick the services and press **Turn music on**.
+3. On a phone on the same Wi-Fi, pick **Family Dashboard** as the speaker and press play.
+
+Each TV's layout (under **TVs**) decides whether it plays music, so the bedroom TV can stay
+quiet. TVs run a couple of seconds behind the phone, and two TVs in the same room may echo a
+little. Spotify's play, pause and skip work from a TV remote's media keys; AirPlay is
+controlled from the phone.
+
+go-librespot and shairport-sync are made by other people; Spotify and Apple don't make or
+support them, and they aren't part of Family Dashboard. Use them with your own accounts and
+under your music service's terms. Music needs a Mac or Linux computer for the server.
+
 ## AI features (optional)
 
 Add your own key from Google AI Studio (Gemini, with a free tier), Anthropic (Claude) or
@@ -196,7 +220,7 @@ in `household.json` with `"hasBus": true` who is set to ride the bus that day.
 
 ## Keep private
 
-`config.txt`, `household.json`, `firebase-app.json`, `home-assistant.json`, `tvs.json` and the Firebase key file hold
+`config.txt`, `household.json`, `firebase-app.json`, `home-assistant.json`, `tvs.json`, `music.json` and the Firebase key file hold
 your secrets and your address. They are listed in `.gitignore`. Leave them out of anything you share.
 
 The server has no password. Run it only on your home network and do not

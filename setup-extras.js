@@ -10,6 +10,7 @@ import { updateConfigFile } from './cloud-config.js';
 import { aiSettings, askAI, AI_PROVIDERS } from './ai.js';
 import { haSettings, testConnection, listEntities, readPicks, savePicks, ALERT_CHOICES } from './home-assistant.js';
 import { CARDS, SECTIONS, BUILT_IN_PROFILES } from './displays.js';
+import { SOURCES } from './music.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const form = express.urlencoded({ extended: false, limit: '10kb' });
@@ -55,7 +56,7 @@ function tail(file, lines) {
   }
 }
 
-export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, displays = null, parents = () => [], log = console.log }) {
+export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, displays = null, music = null, parents = () => [], log = console.log }) {
   const logFile = path.join(dataDir, 'logs', 'server.log');
   let installError = null;
 
@@ -79,7 +80,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
   });
 
   // settings files from an older copy (a folder run with npm start), chosen in the browser
-  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json', 'tvs.json'];
+  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json', 'tvs.json', 'music.json'];
   let importNote = null;
   app.post('/setup/import', homeOnly, express.json({ limit: '2mb' }), (req, res) => {
     const files = req.body?.files || {};
@@ -241,6 +242,52 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     return section('ha', st.connected ? true : st.problem ? false : null, 'Home Assistant (optional)', body);
   }
 
+  // ---- Music: Spotify and AirPlay to every TV (optional)
+  let musicNote = null;
+  app.post('/setup/music', homeOnly, form, (req, res) => {
+    if (!music) return res.redirect('/setup#music');
+    const b = req.body || {};
+    const next = b.off === '1' ? { enabled: false } : { enabled: true, name: b.name, spotify: b.spotify === '1', airplay: b.airplay === '1' };
+    const saved = music.apply(next);
+    musicNote = saved.enabled ? `Saved. Phones on your Wi-Fi can play to "${saved.name}" in a few seconds.` : 'Music is off.';
+    log(`[Setup] Music ${saved.enabled ? `on as "${saved.name}" (Spotify ${saved.spotify ? 'on' : 'off'}, AirPlay ${saved.airplay ? 'on' : 'off'})` : 'off'}.`);
+    res.redirect('/setup#music');
+  });
+
+  function musicSection() {
+    if (!music) return '';
+    const st = music.status();
+    let body = '<p>Play music from a phone to every TV showing Family Dashboard: this computer shows up as a speaker in the Spotify app and in AirPlay, and the TVs play along while the dashboard stays on screen. Each TV\'s layout decides whether it plays music (see TVs).</p>';
+    if (musicNote) body += `<p><b>${esc(musicNote)}</b></p>`;
+    if (!st.supported) {
+      body += '<p class="muted">Music needs a Mac or Linux computer for the server.</p>';
+      return section('music', null, 'Music (optional)', body);
+    }
+    const line = (id) => {
+      const src = SOURCES[id], x = st.sources[id];
+      let state;
+      if (!x.installed) state = `<b style="color:var(--orange)">Not installed.</b> On a Mac, open Terminal and run <code>${esc(src.brew)}</code> (needs <a href="https://brew.sh" target="_blank">Homebrew</a>), then press Save here.`;
+      else if (!x.wanted) state = 'Installed, turned off.';
+      else if (x.playing) state = '<b style="color:var(--green)">Playing now.</b>';
+      else if (x.running) state = id === 'spotify' ? `Ready: in the Spotify app, tap the speaker icon and pick <b>${esc(st.name)}</b>. Needs Spotify Premium.` : `Ready: in Control Center or a music app, tap AirPlay and pick <b>${esc(st.name)}</b>.`;
+      else if (x.problem) state = `<b style="color:var(--orange)">${esc(x.problem)}</b>`;
+      else state = 'Starting...';
+      return `<li><label style="display:flex;gap:10px;align-items:center;flex:1"><input type="checkbox" name="${id}" value="1"${st.enabled && !st.sources[id].wanted ? '' : ' checked'}>
+        <span><b>${esc(src.name)}</b> <small>via <a href="${esc(src.site)}" target="_blank">${esc(src.program)}</a></small><br><small>${state}</small></span></label></li>`;
+    };
+    body += `<form method="post" action="/setup/music">
+      <div class="row"><input name="name" value="${esc(st.name)}" maxlength="40" aria-label="Speaker name" style="flex:1;min-width:200px"><button>${st.enabled ? 'Save' : 'Turn music on'}</button></div>
+      <p class="muted small">The name phones show for this speaker.</p>
+      <ul class="devices">${line('spotify')}${line('airplay')}</ul></form>`;
+    if (st.enabled) {
+      body += `<p class="muted small">${st.listeners ? `${st.listeners} TV${st.listeners === 1 ? '' : 's'} listening now.` : 'No TV is listening right now.'} TVs run a couple of seconds behind the phone.</p>
+        <form method="post" action="/setup/music" class="inline"><input type="hidden" name="off" value="1"><button class="quiet">Turn music off</button></form>`;
+    }
+    body += '<p class="muted small">go-librespot and shairport-sync are free, open-source programs made by other people; Spotify and Apple don\'t make or support them. Use them with your own accounts, under your music service\'s terms. Neither is part of Family Dashboard, and no music passes through anyone but your own computer and TVs.</p>';
+    const ok = st.enabled ? Object.values(st.sources).some(x => x.running) ? true : Object.values(st.sources).some(x => x.wanted && (x.problem || !x.installed)) ? false : null : null;
+    return section('music', ok, 'Music (optional)', body);
+  }
+
   // ---- TVs: name each one and pick its layout
   let tvNote = null;
   const tvForm = express.urlencoded({ extended: false, limit: '50kb', parameterLimit: 2000 });
@@ -270,7 +317,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     } else if (b.removeProfile) {
       tvNote = displays.removeProfile(String(b.removeProfile)) ? 'Layout removed. TVs that used it show the whole house now.' : 'That layout can\'t be removed.';
     } else if (b.profile) {
-      displays.saveProfile(String(b.profile), { name: b.name, cards: list(b.cards), sections: list(b.sections), privateTodosOf: list(b.privateTodosOf) });
+      displays.saveProfile(String(b.profile), { name: b.name, cards: list(b.cards), sections: list(b.sections), privateTodosOf: list(b.privateTodosOf), music: b.music === '1' });
       tvNote = `Saved the "${String(b.name || '').trim() || 'layout'}" layout.`;
     }
     res.redirect('/setup#tvs');
@@ -306,6 +353,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
         ${BUILT_IN_PROFILES[id] ? '' : `<button class="quiet" name="removeProfile" value="${esc(id)}" formnovalidate>Remove</button>`}</div>
         <p class="small"><b>Home cards</b><br>${CARDS.map(c => `<label style="display:inline-flex;gap:6px;margin:4px 14px 4px 0"><input type="checkbox" name="cards" value="${c.id}"${(p.cards || []).includes(c.id) ? ' checked' : ''}>${esc(c.name)}</label>`).join('')}</p>
         <p class="small"><b>Screens</b><br>${SECTIONS.map(c => `<label style="display:inline-flex;gap:6px;margin:4px 14px 4px 0"><input type="checkbox" name="sections" value="${c.id}"${(p.sections || []).includes(c.id) ? ' checked' : ''}>${esc(c.name)}</label>`).join('')}</p>
+        <p class="small"><label style="display:inline-flex;gap:6px"><input type="checkbox" name="music" value="1"${p.music !== false ? ' checked' : ''}><b>Plays music</b> when something is playing on the server's speaker (see Music)</label></p>
         ${people.length ? `<p class="small"><b>Private to-dos</b><br>${people.map(m => `<label style="display:inline-flex;gap:6px;margin:4px 14px 4px 0"><input type="checkbox" name="privateTodosOf" value="${esc(m.id)}"${(p.privateTodosOf || []).includes(m.id) ? ' checked' : ''}>${esc(m.name)}'s</label>`).join('')}</p>` : ''}
       </form>`).join('')}
       <form method="post" action="/setup/layouts" style="margin-top:12px"><button class="quiet" name="add" value="1">Add a layout</button></form></details>`;
@@ -383,6 +431,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     if (ai.configured) aiBody += '</details>';
     parts.push(section('ai', ai.configured ? true : null, 'AI (optional)', aiBody));
     parts.push(await haSection());
+    parts.push(musicSection());
     parts.push(tvsSection());
 
     let tools = `<div class="row"><a href="/setup/log" target="_blank">Show the server log</a>`;

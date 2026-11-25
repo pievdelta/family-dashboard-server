@@ -11,13 +11,14 @@ import { fileURLToPath } from 'url';
 import { buildTaskEvents, tidyOldData } from './tasks.js';
 import { buildFullMap } from './map-full.js';
 import { startDiscovery } from './discovery.js';
-import { setupPairing, isHomeNetwork, lanAddress } from './pairing.js';
+import { setupPairing, isHomeNetwork, lanAddress, homeOnly } from './pairing.js';
 import { startCloudConfig } from './cloud-config.js';
 import { createUpdater } from './updater.js';
 import { setupExtras } from './setup-extras.js';
 import { startAI, aiSettings } from './ai.js';
 import { startHomeAssistant } from './home-assistant.js';
 import { createDisplays, buildLists, BUILT_IN_PROFILES } from './displays.js';
+import { createMusic } from './music.js';
 
 // what a screen that isn't a named TV shows (a browser, an older Roku)
 const TV_DEFAULT_LAYOUT = BUILT_IN_PROFILES.house;
@@ -1532,6 +1533,20 @@ app.use('/web', express.static(WEB_DIR, { maxAge: '5m' }));
 app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
 // the TV page: Android TV, Fire TV, LG webOS, Samsung Tizen, or any browser on a TV
 app.get('/tv', (req, res) => res.sendFile(path.join(WEB_DIR, 'tv.html')));
+
+// music for the TVs (server 5.12, optional): the stream, AirPlay's cover picture, and play/pause/skip
+app.get('/api/music/stream.mp3', homeOnly, (req, res) => music.stream(req, res));
+app.get('/api/music/art', homeOnly, (req, res) => music.art(req, res));
+// just what's playing, for TVs to start and stop the music quickly (polled every few seconds while music is on)
+app.get('/api/music/now', (req, res) => res.set('Cache-Control', 'no-store').json(music.summary()));
+app.post('/api/music/control', homeOnly, express.json({ limit: '2kb' }), async (req, res) => {
+  try {
+    await music.control(String(req.body?.action || ''));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(409).json({ error: e.message });
+  }
+});
 app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').sendFile(path.join(WEB_DIR, 'manifest.webmanifest')));
 
 app.get('/api/dashboard', (req, res) => {
@@ -1685,7 +1700,9 @@ app.get('/api/dashboard', (req, res) => {
       calendarViews: calendarData,
       home: homeAssistant.homeStrip(),
       display: display ? { id: display.id, name: display.name, profileId: display.profileId } : null,
-      layout: { cards: layout.cards, sections: layout.sections },
+      layout: { cards: layout.cards, sections: layout.sections, music: layout.music !== false },
+      // music playing on the server's speaker (Spotify or AirPlay), for TVs to play along; null when off
+      music: music.summary(),
       lists: buildLists({ ...liveData, profile: layout, isoOf: toNyIsoDate, dayName: (d) => nyWeekdayFmt.format(d) }),
       alerts: buildAlerts()
     });
@@ -1747,8 +1764,12 @@ const displays = createDisplays({ file: path.join(process.cwd(), 'tvs.json') });
 
 // Home Assistant (optional, read-only): picked devices on the TV and alerts when they need someone
 const homeAssistant = startHomeAssistant({ picksFile: path.join(process.cwd(), 'home-assistant.json') });
+
+// Music (optional): Spotify and AirPlay to every TV
+const music = createMusic({ file: path.join(process.cwd(), 'music.json'), dataDir: process.cwd() });
+music.start();
 const setupSections = setupExtras(app, {
-  updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant, displays,
+  updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant, displays, music,
   parents: () => liveData.users.filter(u => String(u.role || '').toUpperCase() === 'PARENT' && u.name).map(u => ({ id: u.id, name: u.name }))
 });
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.12.0
+
+- **Music on the TVs (optional add-on).** The server can show up as a speaker in the Spotify app (with go-librespot, Spotify Premium) and in AirPlay (with shairport-sync), and every TV showing Family Dashboard plays along while the dashboard stays on screen. Turn it on under **Music** on the setup page. Each TV's layout has a new **Plays music** setting, so a bedroom TV can stay quiet. The song and artist show at the bottom of the TV, and a remote's play, pause and skip keys control Spotify. TVs get one MP3 stream at `/api/music/stream.mp3`; what's playing is at `/api/music/now`.
+- **The TV page now looks like the Roku app**: the same header with the clock and weather, the Home tiles in the Roku's places (Next up and Today on the left), section tabs with option chips underneath, the remote's keys along the bottom and a white focus ring that stays hidden until the remote is used. Extra cards (to-dos, groceries, meals, Home) fit in beside them. It still runs on older LG and Samsung TVs.
+- The dashboard's `layout` now says whether a TV plays music, and the dashboard has a `music` block, for the Roku app 4.5.
+
 ## 5.11.0
 
 - **The TV page** at `/tv`: Family Dashboard for a remote, on LG webOS, Samsung Tizen, Android TV, Fire TV or any TV browser. A Home screen of cards; OK opens Calendar (agenda, week, month), Weather (with full-screen radar), Travel (with a full-screen map), Chores (mark one done, and pick who did a bounty), Lists and Home. Back goes back, and after three minutes without the remote it returns to Home. It's drawn at 1920 x 1080 and scaled to fit, so it never scrolls or stretches.

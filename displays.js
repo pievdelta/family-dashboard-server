@@ -51,7 +51,9 @@ export function cleanProfile(p, fallbackName = 'Layout') {
     name: clip(p?.name, 40) || fallbackName,
     cards: cards.length ? cards : ['next', 'today'],
     sections,
-    privateTodosOf: (Array.isArray(p?.privateTodosOf) ? p.privateTodosOf : []).map(x => clip(x, 64)).filter(Boolean).slice(0, 6)
+    privateTodosOf: (Array.isArray(p?.privateTodosOf) ? p.privateTodosOf : []).map(x => clip(x, 64)).filter(Boolean).slice(0, 6),
+    // plays the server's music (Spotify, AirPlay) when something is playing; on unless turned off
+    music: p?.music !== false
   };
 }
 

@@ -5,6 +5,9 @@ household.json
 calendar-filters.json
 home-assistant.json
 tvs.json
+music.json
+music/
+addons/
 *firebase-adminsdk*.json
 node_modules/
 firebase-app.json

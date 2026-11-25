@@ -1,6 +1,6 @@
 # Family Dashboard Terms of Use
 
-*Effective November 24, 2026*
+*Effective November 25, 2026*
 
 These terms cover the **Family Dashboard** apps for Android, Android TV, Fire TV and Roku, the
 TV page, and the **Family Dashboard Server** (together, "Family Dashboard"). By using Family
@@ -34,6 +34,13 @@ Calendars, weather, radar, maps, drive times, school bus locations and Home Assi
 other services and can be late, missing or wrong. Don't rely on Family Dashboard alone for
 anything where timing or safety matters, such as when to meet the bus or severe weather.
 Each of those services has its own terms.
+
+## Music
+
+The optional music feature uses go-librespot and shairport-sync, free programs made by other
+people. Spotify and Apple don't make, approve or support them, and they aren't part of Family
+Dashboard. If you use them, you're responsible for following your music service's terms; play
+music only in your own home, not for the public.
 
 ## Use it fairly
 

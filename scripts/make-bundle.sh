@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION=$(node -p "require('./package.json').version")
 NAME="family-dashboard-server-$VERSION"
-FILES="server.js launcher.js updater.js setup-extras.js pairing.js cloud-config.js tasks.js discovery.js map-full.js ai.js home-assistant.js displays.js
+FILES="server.js launcher.js updater.js setup-extras.js pairing.js cloud-config.js tasks.js discovery.js map-full.js ai.js home-assistant.js displays.js music.js
 firestore.rules package.json package-lock.json household.example.json config.example.txt README.md LICENSE CHANGELOG.md"
 
 [ -d node_modules ] || { echo "run npm ci --omit=dev first"; exit 1; }
@@ -26,7 +26,7 @@ cp -R node_modules "dist/$NAME/node_modules"
 # a dev-only test helper is never needed by a running server
 find "dist/$NAME/node_modules" -name ".cache" -type d -prune -exec rm -rf {} +
 # no secrets, ever
-if find "dist/$NAME" -maxdepth 1 \( -name 'config.txt' -o -name 'household.json' -o -name 'home-assistant.json' -o -name 'tvs.json' -o -name '*adminsdk*.json' \) | grep -q .; then
+if find "dist/$NAME" -maxdepth 1 \( -name 'config.txt' -o -name 'household.json' -o -name 'home-assistant.json' -o -name 'tvs.json' -o -name 'music.json' -o -name '*adminsdk*.json' \) | grep -q .; then
   echo "refusing: a personal file got into the bundle"; exit 1
 fi
 (cd dist && COPYFILE_DISABLE=1 tar -czf "$NAME.tar.gz" "$NAME")

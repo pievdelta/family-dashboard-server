@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+// Stand-in for shairport-sync in tests: a 660 Hz tone on stdout in real time, and the
+// song's details on the metadata pipe, in shairport-sync's format.
+import fs from 'fs';
+const a = process.argv.slice(2);
+const metaPipe = a.find(x => x.startsWith('--metadata-pipename=')).split('=')[1];
+const hex = (w) => Buffer.from(w, 'latin1').toString('hex');
+const item = (t, c, d) => `<item><type>${hex(t)}</type><code>${hex(c)}</code><length>${d ? d.length : 0}</length>` + (d ? `\n<data encoding="base64">\n${Buffer.from(d).toString('base64')}</data>` : '') + '</item>\n';
+const meta = fs.createWriteStream(metaPipe);
+if (process.env.FAKE_AIRPLAY_QUIET !== '1') {
+  meta.write(item('ssnc', 'pbeg') + item('core', 'minm', 'AirPlay Song') + item('core', 'asar', 'AirPlay Artist') + item('core', 'asal', 'AirPlay Album') + item('ssnc', 'PICT', Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(200)])));
+  let ph = 0;
+  setInterval(() => {
+    const n = 882, b = Buffer.alloc(n * 4);
+    for (let i = 0; i < n; i++) { const v = Math.round(Math.sin(ph) * 6000); b.writeInt16LE(v, i * 4); b.writeInt16LE(v, i * 4 + 2); ph += 2 * Math.PI * 660 / 44100; }
+    process.stdout.write(b);
+  }, 20);
+} else setInterval(() => {}, 1000);

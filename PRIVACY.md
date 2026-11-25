@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Effective November 24, 2026*
+*Effective November 25, 2026*
 
 This policy covers the **Family Dashboard** app for Roku, the **Family Dashboard Server**,
 and the **Family Dashboard** app for Android and Android TV (first released as Chore Bounty Board) (together, "Family Dashboard").
@@ -75,6 +75,14 @@ Everything is yours to change or delete: edit or remove settings from the server
 or the phone app, delete your Firebase project in the Firebase console, and uninstall the
 apps and server at any time. Because we never receive your data, there is nothing for us to
 delete.
+
+## Music (optional)
+
+If a family turns on music, the server runs go-librespot (Spotify) or shairport-sync (AirPlay),
+programs the family installs itself. Phones on the home Wi-Fi play to them, and the server sends
+the sound and the song's name, artist and cover to the family's own TVs. Nothing about what you
+play goes to the developer. Spotify and Apple handle your listening under your own account and
+their own privacy policies.
 
 ## Delete your data
 

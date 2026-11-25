@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+// Stand-in for go-librespot in tests: reads its config, plays a 440 Hz tone into the
+// audio pipe in real time, and answers /status and the play/pause/skip calls.
+import fs from 'fs'; import http from 'http'; import path from 'path';
+const dir = process.argv[process.argv.indexOf('-config_dir') + 1];
+const cfg = fs.readFileSync(path.join(dir, 'config.yml'), 'utf8');
+const pipe = JSON.parse(/audio_output_pipe: (".*")/.exec(cfg)[1]);
+const port = Number(/  port: (\d+)/.exec(cfg)[1]);
+const name = JSON.parse(/device_name: (".*")/.exec(cfg)[1]);
+let paused = false, track = 1;
+const log = path.join(dir, 'calls.log');
+http.createServer((req, res) => {
+  fs.appendFileSync(log, `${req.method} ${req.url}\n`);
+  if (req.url === '/status') return res.end(JSON.stringify({ device_name: name, paused, stopped: false, track: { name: `Song ${track}`, artist_names: ['Band A', 'Band B'], album_name: 'Album', album_cover_url: 'https://i.scdn.co/image/abc' } }));
+  if (req.url === '/player/playpause') paused = !paused;
+  if (req.url === '/player/next') track++;
+  res.statusCode = 204; res.end();
+}).listen(port, '127.0.0.1');
+const out = fs.createWriteStream(pipe);
+let ph = 0;
+setInterval(() => {
+  if (paused) return;
+  const n = 882, b = Buffer.alloc(n * 4);
+  for (let i = 0; i < n; i++) { const v = Math.round(Math.sin(ph) * 6000); b.writeInt16LE(v, i * 4); b.writeInt16LE(v, i * 4 + 2); ph += 2 * Math.PI * 440 / 44100; }
+  out.write(b);
+}, 20);

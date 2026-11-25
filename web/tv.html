@@ -9,16 +9,18 @@
 </head>
 <body>
 <!-- The TV page: a fixed 1920 x 1080 screen, scaled to fit any TV, run with a remote.
-     For Android TV, Fire TV, LG webOS, Samsung Tizen, or any browser at /tv. -->
+     For Android TV, Fire TV, LG webOS, Samsung Tizen, or any browser at /tv.
+     It looks and works like the Roku app. -->
 <div id="stage">
-  <header id="top">
-    <div class="crumb" id="crumb">Home</div>
-    <div class="clock"><span id="date"></span><b id="clock"></b></div>
-  </header>
+  <div id="clockbox"><b id="clock"></b><span id="date"></span></div>
+  <div id="tabs"></div>
+  <div id="wx" hidden></div>
+  <div id="chips" hidden></div>
   <main id="screen"></main>
-  <footer id="hint"></footer>
+  <footer id="foot"><div id="hint"></div><div id="status"></div></footer>
   <div id="layer" hidden></div>
   <div id="alert" hidden></div>
+  <audio id="music" preload="none"></audio>
 </div>
 <script src="/web/demo.js"></script>
 <script src="/web/tv.js"></script>

@@ -245,6 +245,95 @@ await test('server starts and answers', async () => {
   }
 });
 
+await test('music: Spotify and AirPlay reach the TVs as one MP3 stream', async () => {
+  const { createMusic, airplayMetaParser, spotifyStatus, cleanName, PcmSource } = await import('../music.js');
+  // the pieces first
+  const items = [];
+  const feed = airplayMetaParser((i) => items.push(i));
+  const hex = (w) => Buffer.from(w, 'latin1').toString('hex');
+  feed(`<item><type>${hex('core')}</type><code>${hex('minm')}</code><length>5</length>\n<data encoding="base64">\nSGVs`);
+  feed(`bG8=</data></item>\n<item><type>${hex('ssnc')}</type><code>${hex('pbeg')}</code><length>0</length></item>`);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].code, 'minm'); assert.equal(items[0].data.toString(), 'Hello');
+  assert.equal(items[1].type, 'ssnc'); assert.equal(items[1].data, null);
+  assert.deepEqual(spotifyStatus({ paused: false, track: { name: 'X', artist_names: ['A', 'B'], album_cover_url: 'http://insecure' } }), { playing: true, title: 'X', artist: 'A, B', album: '', art: '' });
+  assert.equal(spotifyStatus({}).playing, false);
+  assert.equal(cleanName('  Kitchen <script> "TV"  '), 'Kitchen script TV');
+  // a source holds only whole samples, and asks its program to wait when full
+  const s = new PcmSource('x');
+  let paused = 0;
+  s.stream = { pause: () => paused++, resume: () => {} };
+  s.push(Buffer.alloc(7)); assert.equal(s.bytes, 4);
+  s.push(Buffer.alloc(44100 * 4 * 2)); assert.equal(paused, 1);
+
+  // the real thing, with stand-ins for the two programs
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-music-'));
+  const fakes = path.join(root, 'test', 'fakes');
+  const logs = [];
+  const music = createMusic({
+    file: path.join(data, 'music.json'), dataDir: data, log: (m) => logs.push(m),
+    find: (program) => path.join(fakes, program), apiPort: 3680 + Math.floor(Math.random() * 200)
+  });
+  const express = (await import('express')).default;
+  const app = express();
+  app.get('/stream', (req, res) => music.stream(req, res));
+  app.get('/art', (req, res) => music.art(req, res));
+  const srv = app.listen(0);
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    assert.equal(music.summary(), null, 'off until turned on');
+    music.apply({ enabled: true, name: 'Test Speaker' });
+    assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'music.json'), 'utf8')).name, 'Test Speaker');
+    await new Promise(r => setTimeout(r, 4000));
+    const st = music.status();
+    assert.ok(st.sources.spotify.running && st.sources.airplay.running, `both running: ${JSON.stringify(st)} ${logs.join(' | ')}`);
+    const sum = music.summary();
+    assert.equal(sum.playing, true);
+    assert.ok(['spotify', 'airplay'].includes(sum.source));
+    // a TV listens for two seconds: real MP3 frames, about the right amount
+    const ctl = new AbortController();
+    const r = await fetch(`${base}/stream`, { signal: ctl.signal });
+    assert.equal(r.headers.get('content-type'), 'audio/mpeg');
+    const reader = r.body.getReader();
+    let got = 0, first = null;
+    const until = Date.now() + 2000;
+    while (Date.now() < until) { const { value } = await reader.read(); if (!value) break; if (!first) first = value; got += value.length; }
+    ctl.abort();
+    assert.ok(first[0] === 0xff && (first[1] & 0xe0) === 0xe0, 'starts on an MP3 frame');
+    assert.ok(got > 160000 / 8 * 1.5 && got < 160000 / 8 * 5, `about 2 s of 160 kbps MP3 (got ${got} bytes)`);
+    // AirPlay's song details and cover came through its pipe
+    assert.equal(music._meta.airplay.title, 'AirPlay Song');
+    assert.equal(music._meta.airplay.artist, 'AirPlay Artist');
+    assert.equal((await fetch(`${base}/art`)).status, 200);
+    // Spotify's details and the remote's buttons
+    await new Promise(r => setTimeout(r, 2200));
+    assert.equal(music._meta.spotify.title, 'Song 1');
+    assert.equal(music._meta.spotify.artist, 'Band A, Band B');
+    music._sources.airplay.lastDataAt = 0; // pretend the iPhone stopped, so Spotify is the one playing
+    const killAir = music.status();
+    assert.ok(killAir);
+    // turning AirPlay off leaves Spotify playing
+    const spotifyBefore = music._procs.spotify.child.pid;
+    music.apply({ airplay: false });
+    await new Promise(r => setTimeout(r, 5000));
+    assert.equal(music.status().sources.airplay.running, false);
+    // the restarted Spotify is the only one, and the server tracks it
+    const live = (await import('child_process')).execSync('ps -eo pid,args').toString().split('\n').filter(l => l.includes('fakes/go-librespot') && l.includes(data));
+    assert.equal(live.length, 1, live.join('\n'));
+    assert.notEqual(music._procs.spotify.child.pid, spotifyBefore);
+    assert.equal(music.summary().source, 'spotify');
+    await music.control('next');
+    const calls = fs.readFileSync(path.join(data, 'music', 'spotify', 'calls.log'), 'utf8');
+    assert.ok(calls.includes('POST /player/next'), 'skip reached Spotify');
+    music.apply({ enabled: false });
+    assert.equal(music.summary(), null);
+  } finally {
+    music.stop();
+    srv.close();
+    fs.rmSync(data, { recursive: true, force: true });
+  }
+});
+
 if (failed) {
   console.log(`\n${failed} failed`);
   process.exit(1);
