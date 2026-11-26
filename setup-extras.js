@@ -56,7 +56,7 @@ function tail(file, lines) {
   }
 }
 
-export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, displays = null, music = null, parents = () => [], log = console.log }) {
+export function setupExtras(app, { updater, dataDir = process.cwd(), requestRestart, aiState = () => ({}), homeAssistant = null, displays = null, music = null, flights = null, parents = () => [], log = console.log }) {
   const logFile = path.join(dataDir, 'logs', 'server.log');
   let installError = null;
 
@@ -80,7 +80,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
   });
 
   // settings files from an older copy (a folder run with npm start), chosen in the browser
-  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json', 'tvs.json', 'music.json'];
+  const IMPORTABLE = ['config.txt', 'household.json', 'firebase-app.json', '.cloud-sync.json', 'calendar-filters.json', 'home-assistant.json', 'tvs.json', 'music.json', 'flights.json'];
   let importNote = null;
   app.post('/setup/import', homeOnly, express.json({ limit: '2mb' }), (req, res) => {
     const files = req.body?.files || {};
@@ -288,6 +288,54 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     return section('music', ok, 'Music (optional)', body);
   }
 
+  // ---- Flights: calendar flights tracked with the family's own keys (optional)
+  let flightsNote = null;
+  app.post('/setup/flights', homeOnly, form, (req, res) => {
+    if (!flights) return res.redirect('/setup#flights');
+    const b = req.body || {};
+    const next = b.off === '1' ? { enabled: false } : {
+      enabled: true,
+      // an empty key box keeps the saved key (the page never shows it); "Remove" clears it
+      aeroKey: b.clearAero === '1' ? '' : String(b.aeroKey || '').trim() || '••••••',
+      openSkyId: String(b.openSkyId || '').trim(),
+      openSkySecret: String(b.openSkyId || '').trim() ? String(b.openSkySecret || '').trim() || '••••••' : '',
+      bufferMin: Number(b.bufferMin) || 120,
+      workIsClients: b.workIsClients === '1',
+      monthlyDollars: Number(b.monthlyDollars)
+    };
+    const saved = flights.apply(next);
+    flightsNote = saved.enabled ? 'Saved. Flights on the calendar show up within a minute or two.' : 'Flight tracking is off.';
+    log(`[Setup] Flights ${saved.enabled ? 'on' : 'off'}${saved.enabled ? ` (FlightAware ${saved.aeroKey ? 'key saved' : 'no key'}, OpenSky ${saved.openSkyId ? 'keys saved' : 'anonymous'})` : ''}.`);
+    res.redirect('/setup#flights');
+  });
+
+  function flightsSection() {
+    if (!flights) return '';
+    const st = flights.status();
+    let body = '<p>Any calendar event with a flight number, like "DL 1234" or "Delta 1234", shows on the TVs: status, delays, gates and where the plane is. Family flights get a time to leave for the airport and alerts; pickups ("Pick up Grandma B6 815") get a time to leave so you\'re there when they land.</p>';
+    if (flightsNote) body += `<p><b>${esc(flightsNote)}</b></p>`;
+    if (st.problem) body += `<p><b style="color:var(--orange)">${esc(st.problem)}</b></p>`;
+    const masked = (has) => (has ? 'placeholder="Saved (type a new one to change it)"' : '');
+    body += `<form method="post" action="/setup/flights">
+      <p class="small"><b>FlightAware AeroAPI key</b> (status, delays, gates). Get one free at <a href="https://www.flightaware.com/aeroapi/portal" target="_blank">flightaware.com/aeroapi</a>: the Personal tier's first $5 a month is free, about 30 flights.</p>
+      <div class="row"><input name="aeroKey" type="password" autocomplete="off" ${masked(st.hasAero)} style="flex:1;min-width:220px" aria-label="FlightAware key">${st.hasAero ? '<label class="small"><input type="checkbox" name="clearAero" value="1"> Remove</label>' : ''}</div>
+      <p class="small"><b>OpenSky client ID and secret</b> (optional: where the plane is, live). Free at <a href="https://opensky-network.org" target="_blank">opensky-network.org</a> under Account › API client. Without them the plane is placed along its route.</p>
+      <div class="row"><input name="openSkyId" value="${esc(flights.settings.openSkyId)}" placeholder="Client ID" style="flex:1;min-width:160px" aria-label="OpenSky client ID"><input name="openSkySecret" type="password" autocomplete="off" ${masked(st.hasOpenSky)} placeholder="${st.hasOpenSky ? 'Saved' : 'Client secret'}" style="flex:1;min-width:160px" aria-label="OpenSky client secret"></div>
+      <div class="row small" style="margin-top:10px"><label>Be at the airport <input name="bufferMin" type="number" min="30" max="240" step="15" value="${st.bufferMin}" style="width:5em"> minutes before departure</label></div>
+      <div class="row small"><label>Spend at most $<input name="monthlyDollars" type="number" min="0" max="100" step="1" value="${st.monthlyDollars}" style="width:4em"> a month on FlightAware</label> <span class="muted">(this month: ${st.callsThisMonth} checks, about $${st.spent.toFixed(2)})</span></div>
+      <p class="small"><label><input type="checkbox" name="workIsClients" value="1"${st.workIsClients ? ' checked' : ''}> Flights on the work calendar are client flights</label><br><span class="muted">Client flights show their status and landing, without a time to leave or a chime. Putting "client" in any event does the same.</span></p>
+      <div class="row"><button>${st.enabled ? 'Save' : 'Turn flights on'}</button></div></form>`;
+    if (st.enabled) {
+      const list = st.flights;
+      body += list.length ? `<ul class="devices">${list.map(f => `<li><span><b>${esc(f.code)}</b> ${esc(f.from.code || '?')} → ${esc(f.to.code || '?')}  ·  ${esc(f.status)}${f.who ? `  ·  ${esc(f.who)}` : ''}${f.kind === 'client' ? ' <small>(client)</small>' : ''}<br><small class="muted">${esc([f.departs.time ? `${f.departs.label} ${f.departs.time}` : '', f.leaveBy ? `leave by ${f.leaveBy.time}` : '', f.note].filter(Boolean).join('  ·  '))}</small></span></li>`).join('')}</ul>`
+        : '<p class="muted small">No flights on the calendar in the next day and a half.</p>';
+      body += '<form method="post" action="/setup/flights" class="inline"><input type="hidden" name="off" value="1"><button class="quiet">Turn flights off</button></form>';
+    }
+    body += '<p class="muted small">Only flight numbers go to FlightAware, under your key. FlightAware\'s Personal tier is for personal use.</p>';
+    const ok = st.enabled ? (st.problem ? false : st.hasAero ? true : null) : null;
+    return section('flights', ok, 'Flights (optional)', body);
+  }
+
   // ---- TVs: name each one and pick its layout
   let tvNote = null;
   const tvForm = express.urlencoded({ extended: false, limit: '50kb', parameterLimit: 2000 });
@@ -431,6 +479,7 @@ export function setupExtras(app, { updater, dataDir = process.cwd(), requestRest
     if (ai.configured) aiBody += '</details>';
     parts.push(section('ai', ai.configured ? true : null, 'AI (optional)', aiBody));
     parts.push(await haSection());
+    parts.push(flightsSection());
     parts.push(musicSection());
     parts.push(tvsSection());
 

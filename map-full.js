@@ -18,7 +18,7 @@ function worldPixel(lat, lon, z) {
  * zoom:   a number (10-18) or 'auto'
  * Returns tile urls in row order plus where each point lands on screen.
  */
-export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 1080, tileUrl, roomX = null, roomY = null }) {
+export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 1080, tileUrl, roomX = null, roomY = null, minZoom = 10, path = [] }) {
   width = Math.round(Math.min(3840, Math.max(320, Number(width) || 1920)));
   height = Math.round(Math.min(2160, Math.max(240, Number(height) || 1080)));
   // room for the labels and the title card, in proportion on smaller screens
@@ -30,9 +30,9 @@ export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 108
   let z = Number(zoom);
   if (!Number.isFinite(z)) {
     // closest zoom where everything fits inside the screen, leaving room for the labels
-    z = usable.length === 1 ? 15 : 10;
+    z = usable.length === 1 ? 15 : minZoom;
     if (usable.length > 1) {
-      for (let tryZ = 17; tryZ >= 10; tryZ--) {
+      for (let tryZ = 17; tryZ >= minZoom; tryZ--) {
         const px = usable.map(p => worldPixel(p.lat, p.lon, tryZ));
         const w = Math.max(...px.map(p => p.x)) - Math.min(...px.map(p => p.x));
         const h = Math.max(...px.map(p => p.y)) - Math.min(...px.map(p => p.y));
@@ -40,7 +40,7 @@ export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 108
       }
     }
   }
-  z = Math.min(18, Math.max(10, Math.round(z)));
+  z = Math.min(18, Math.max(minZoom, Math.round(z)));
 
   const px = usable.map(p => worldPixel(p.lat, p.lon, z));
   const cx = (Math.max(...px.map(p => p.x)) + Math.min(...px.map(p => p.x))) / 2;
@@ -71,8 +71,14 @@ export function buildFullMap({ points, zoom = 'auto', width = 1920, height = 108
     label: p.label || '',
     color: p.color || '0xE8623CFF',
     x: Math.round(px[i].x - left),
-    y: Math.round(px[i].y - top)
+    y: Math.round(px[i].y - top),
+    ...(Number.isFinite(p.rot) ? { rot: Math.round(p.rot) } : {})
   }));
+  // a line to draw (a flight's route), as screen points
+  const line = (Array.isArray(path) ? path : []).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon)).map(p => {
+    const w = worldPixel(p.lat, p.lon, z);
+    return { x: Math.round(w.x - left), y: Math.round(w.y - top) };
+  });
 
-  return { zoom: z, tileSize: TILE, width, height, originX, originY, cols, rows, tiles, pins };
+  return { zoom: z, tileSize: TILE, width, height, originX, originY, cols, rows, tiles, pins, ...(line.length ? { path: line } : {}) };
 }

@@ -30,6 +30,8 @@ body { font-family: "Roboto", "Noto Sans", "LG Smart UI", "SamsungOne", -apple-s
 #tabs { position: absolute; right: 566px; top: 76px; height: 58px; display: flex; }
 .stab { position: relative; height: 52px; line-height: 52px; padding: 0 24px; margin-left: 6px; border-radius: 26px; font-size: 30px; font-weight: 700; color: var(--text2); white-space: nowrap; }
 .stab.sel { color: var(--text); }
+#tabs.tight .stab { padding: 0 16px; margin-left: 2px; font-size: 28px; }
+#tabs.tight .stab.sel::after { left: 14px; right: 14px; }
 .stab.sel::after { content: ''; position: absolute; left: 22px; right: 22px; top: 54px; height: 4px; background: var(--accent); }
 .stab.on { background: var(--accent); color: var(--text); }
 .stab.on::after { display: none; }
@@ -175,6 +177,11 @@ body.idle #wx.on { box-shadow: none; }
 .map .pin i { width: 34px; height: 34px; border-radius: 50%; border: 5px solid #fff; background: var(--accent); box-shadow: 0 4px 14px rgba(0,0,0,.5); }
 .map .pin.home i { background: #F8FAFC; border-color: #0B1611; }
 .map .pin span { margin-top: 6px; background: rgba(11,22,17,.85); padding: 4px 12px; border-radius: 10px; font-size: 22px; font-weight: 700; white-space: nowrap; }
+.map .route { position: absolute; left: 0; top: 0; }
+.map .plane { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
+.map .plane svg { filter: drop-shadow(0 3px 8px rgba(0,0,0,.6)); }
+.map .plane span { margin-top: 2px; background: rgba(11,22,17,.85); padding: 4px 12px; border-radius: 10px; font-size: 22px; font-weight: 700; white-space: nowrap; }
+.map .pin.airport i { width: 22px; height: 22px; border: 4px solid #0B1611; background: #F8FAFC; }
 .map .badge { position: absolute; left: 20px; bottom: 20px; background: rgba(11,22,17,.85); padding: 10px 18px; border-radius: 14px; font-size: 24px; color: var(--text2); }
 .radar { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
 .radar .cell { position: absolute; overflow: hidden; width: 33.34%; height: 33.34%; }
@@ -191,6 +198,9 @@ body.idle #wx.on { box-shadow: none; }
 .item .r { color: var(--warn); font-weight: 700; font-size: 28px; white-space: nowrap; margin-left: 14px; }
 .item.f.on { box-shadow: 0 0 0 7px var(--text); }
 .item.tall { height: auto; padding: 22px 28px; flex-direction: column; align-items: flex-start; }
+.item .box { width: 36px; height: 36px; border-radius: 10px; border: 3px solid var(--text3); margin-right: 18px; flex: none; text-align: center; line-height: 30px; font-size: 26px; font-weight: 700; color: var(--ink); }
+.item.checked .box { background: var(--good); border-color: var(--good); }
+.item.checked .x { text-decoration: line-through; color: var(--text3); }
 .item.attn { background: #3a3a1c; }
 .item.attn small, .item.attn .s { color: var(--warn); }
 .item .lab { width: 230px; color: var(--text2); font-weight: 700; flex: none; }

@@ -70,7 +70,7 @@
     if (peekWx) q.set('wx', peekWx);
     return fetch('/api/dashboard?' + q.toString(), { cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('The server answered ' + r.status + '.'); return r.json(); })
-      .then(function (d) { data = d; nowPlaying = d.music || null; lastOk = Date.now(); problem = null; render(); showAlerts(); syncMusic(); })
+      .then(function (d) { data = d; nowPlaying = d.music || null; lastOk = Date.now(); problem = null; checked = {}; render(); showAlerts(); syncMusic(); })
       .catch(function (e) { problem = e.message; if (!data) render(); else renderFoot(); });
   }
 
@@ -78,7 +78,7 @@
   // view: 'home' or a section; sub: the chip picked in it; focus: the focused element's key
   var nav = { view: 'home', sub: null, focus: null, scroll: 0 };
   var SECTIONS = ['calendar', 'weather', 'travel', 'chores', 'lists', 'home'];
-  var NAMES = { calendar: 'Calendar', weather: 'Weather', travel: 'Travel', chores: 'Chores', lists: 'Lists', home: 'Home' };
+  var NAMES = { calendar: 'Calendar', weather: 'Weather', travel: 'Travel', chores: 'Chores', lists: 'Lists', home: 'Smart home' };
   // which section (and chip) a Home tile opens
   var OPENS = { next: ['calendar', 'agenda'], today: ['calendar', 'agenda'], weather: ['weather', null], travel: ['travel', null],
     chores: ['chores', null], todos: ['lists', 'todos'], groceries: ['lists', 'groceries'], meals: ['lists', 'meals'], home: ['home', null] };
@@ -141,6 +141,7 @@
     // section tabs, right-aligned next to the weather (not on Home)
     var tabs = $('#tabs');
     if (nav.view === 'home') { tabs.innerHTML = ''; return; }
+    tabs.className = sections().length >= 6 ? 'tight' : '';
     tabs.innerHTML = sections().map(function (s) {
       return '<div class="stab f' + (s === nav.view ? ' sel' : '') + '" data-f="tab-' + s + '" data-section="' + s + '">' + NAMES[s] + '</div>';
     }).join('');
@@ -271,7 +272,26 @@
     }
     if (b.id === 'travel') {
       var bus = d.bus || {}, trip = soonestTrip(), eb2, st = '', big = '', ft = '', ebc = 'var(--text3)', bigc = '', ftc = '';
-      if (bus.isActive) {
+      var fNow = arr(d.flights).filter(function (f) {
+        if (f.phase === 'cancelled' && f.kind === 'family') return true;
+        if (f.phase === 'air' || f.phase === 'taxiing') return true;
+        if (f.kind !== 'family') return false;
+        var soon = f.leaveBy ? f.leaveBy.ms - Date.now() < 3 * 3600000 : f.departs.ms && f.departs.ms - Date.now() < 4 * 3600000;
+        return (soon && f.phase !== 'arrived') || (f.phase === 'landed' && f.arrives.ms && Date.now() - f.arrives.ms < 45 * 60000);
+      })[0];
+      if (!bus.isActive && fNow) {
+        eb2 = (fNow.kind === 'client' ? 'CLIENT FLIGHT' : fNow.pickup ? 'PICKUP' : 'FLIGHT') + (fNow.who ? '  ·  ' + fNow.who.toUpperCase() : ''); ebc = css(fNow.colorHex);
+        st = join([fNow.code, (fNow.from.code || '?') + ' \u2192 ' + (fNow.to.code || '?'), fNow.status]);
+        if (fNow.phase === 'air' || fNow.phase === 'taxiing') { big = 'Lands ' + fNow.arrives.time; ft = join([fNow.arrives.terminal ? 'Terminal ' + fNow.arrives.terminal : '', fNow.arrives.gate ? 'Gate ' + fNow.arrives.gate : '', fNow.leaveBy && fNow.leaveBy.kind === 'pickup' ? 'leave by ' + fNow.leaveBy.time : '']); }
+        else if (fNow.phase === 'landed' || fNow.phase === 'arrived') { big = 'Landed'; bigc = 'var(--good)'; ft = join([fNow.arrives.gate ? 'Gate ' + fNow.arrives.gate : '', fNow.arrives.baggage ? 'Bags ' + fNow.arrives.baggage : '']); }
+        else if (fNow.phase === 'cancelled') { big = 'Cancelled'; bigc = 'var(--alert)'; }
+        else if (fNow.leaveBy && fNow.leaveBy.ms > Date.now() - 20 * 60000) {
+          var rem = Math.round((fNow.leaveBy.ms - Date.now()) / 60000);
+          big = 'Leave by ' + fNow.leaveBy.time; ft = join([fNow.leaveBy.driveMins + ' min drive', fNow.departs.label + ' ' + fNow.departs.time, fNow.departs.gate ? 'Gate ' + fNow.departs.gate : '']);
+          if (rem <= 15) { bigc = 'var(--warn)'; ftc = 'var(--warn)'; }
+        } else { big = 'Departs ' + fNow.departs.time; ft = join([fNow.departs.terminal ? 'Terminal ' + fNow.departs.terminal : '', fNow.departs.gate ? 'Gate ' + fNow.departs.gate : '']); }
+        if (fNow.phase === 'delayed') bigc = bigc || 'var(--warn)';
+      } else if (bus.isActive) {
         var riders = arr(bus.riders).map(function (x) { return String(x).toUpperCase(); });
         eb2 = 'BUS' + (riders.length && riders.length <= 2 ? '  ·  ' + riders.join(' & ') : ''); ebc = 'var(--good)';
         st = bus.status || ''; big = bus.distanceLabel || bus.eta || '';
@@ -332,7 +352,7 @@
     }
     if (b.id === 'home') {
       var hs = arr(d.home), attn = hs.filter(function (h) { return h.attention; });
-      return '<div class="head"><b>Home</b><span' + (attn.length ? ' style="color:var(--warn)"' : '') + '>' + (attn.length ? 'Needs a look' : 'All good') + '</span></div><div class="rows">' +
+      return '<div class="head"><b>Smart home</b><span' + (attn.length ? ' style="color:var(--warn)"' : '') + '>' + (attn.length ? 'Needs a look' : 'All good') + '</span></div><div class="rows">' +
         attn.concat(hs.filter(function (h) { return !h.attention; })).slice(0, rowsFit(b)).map(function (h) {
           return '<div class="r"><span class="x one">' + esc(h.name) + '</span><span class="k" style="color:' + (h.attention ? 'var(--warn)' : 'var(--text2)') + '">' + esc(h.state) + '</span></div>';
         }).join('') + '</div>';
@@ -389,7 +409,12 @@
   function chipsFor(view) {
     if (view === 'calendar') return [{ id: 'agenda', name: 'Agenda' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }];
     if (view === 'weather') { var locs = arr(data.weatherLocations); return locs.length > 1 ? locs.map(function (l) { return { id: l.id, name: l.name }; }) : []; }
-    if (view === 'travel') { var ms = arr(get(data, 'transport.members', [])); return ms.length > 1 ? ms.map(function (m) { return { id: m.id, name: title(m.name), color: css(m.colorHex) }; }) : []; }
+    if (view === 'travel') {
+      var ms = arr(get(data, 'transport.members', [])), fl = arr(data.flights);
+      var c = ms.map(function (m) { return { id: m.id, name: title(m.name), color: css(m.colorHex) }; })
+        .concat(fl.map(function (f) { return { id: 'flight:' + f.id, name: '\u2708 ' + f.code, color: css(f.colorHex, '#7DD3FC') }; }));
+      return c.length > 1 ? c : [];
+    }
     if (view === 'lists') return [{ id: 'todos', name: 'To-dos' }, { id: 'groceries', name: 'Groceries' }, { id: 'meals', name: 'Meals' }];
     return [];
   }
@@ -397,7 +422,12 @@
     var c = chipsFor(nav.view);
     if (nav.sub && c.some(function (x) { return x.id === nav.sub; })) return nav.sub;
     if (nav.view === 'weather') return data.selectedWxLoc || (c[0] && c[0].id) || null;
-    if (nav.view === 'travel') return get(data, 'transport.selectedMemberId', null) || (c[0] && c[0].id) || null;
+    if (nav.view === 'travel') {
+      // a flight in the air or about to go comes first; then whoever the dashboard is following
+      var now1 = arr(data.flights).filter(function (f) { return f.phase === 'air' || f.phase === 'taxiing' || (f.kind === 'family' && f.departs.ms && f.departs.ms - Date.now() < 4 * 3600000 && f.phase !== 'arrived' && f.phase !== 'cancelled'); })[0];
+      if (now1) return 'flight:' + now1.id;
+      return get(data, 'transport.selectedMemberId', null) || (c[0] && c[0].id) || null;
+    }
     return c[0] ? c[0].id : null;
   }
   function renderChips() {
@@ -476,7 +506,31 @@
     }).join('') + '</div>';
   }
 
+  function flightById(id) { return arr(data.flights).filter(function (f) { return f.id === id; })[0] || null; }
+  var PHASE_COLOR = { delayed: 'var(--warn)', cancelled: 'var(--alert)', diverted: 'var(--alert)', air: 'var(--info)', taxiing: 'var(--info)', landed: 'var(--good)', arrived: 'var(--good)', ontime: 'var(--good)' };
+  function flightCard(f) {
+    var eb = (f.kind === 'client' ? 'CLIENT FLIGHT' : f.pickup ? 'PICKUP' : 'FLIGHT') + (f.who ? '  ·  ' + f.who.toUpperCase() : '');
+    var lines = '<div class="lbl" style="color:' + css(f.colorHex) + '">' + esc(eb) + '</div>' +
+      '<div style="font-size:56px;font-weight:700;line-height:1.1">' + esc(f.code) + '<span style="font-size:30px;color:var(--text2);font-weight:400">  ' + esc(f.airline) + '</span></div>' +
+      '<div style="font-size:32px;margin-top:6px">' + esc((f.from.code || '?') + ' \u2192 ' + (f.to.code || '?')) + '<span style="color:var(--text2)">  ' + esc(join([f.from.city, f.to.city]).replace('  ·  ', ' to ')) + '</span></div>' +
+      '<div style="font-size:40px;font-weight:700;margin-top:18px;color:' + (PHASE_COLOR[f.phase] || 'var(--text)') + '">' + esc(f.status) + '</div>';
+    var row = function (lab, v, extra) { return '<div style="display:flex;font-size:28px;margin-top:12px"><span style="width:190px;color:var(--text3)">' + esc(lab) + '</span><b style="flex:1">' + esc(v) + '</b><span style="color:var(--text2)">' + esc(extra || '') + '</span></div>'; };
+    lines += '<div style="margin-top:12px">' + row(f.departs.label, f.departs.time || '--', join([f.departs.terminal ? 'Terminal ' + f.departs.terminal : '', f.departs.gate ? 'Gate ' + f.departs.gate : ''])) +
+      row(f.arrives.label, f.arrives.time || '--', join([f.arrives.terminal ? 'Terminal ' + f.arrives.terminal : '', f.arrives.gate ? 'Gate ' + f.arrives.gate : '', f.arrives.baggage ? 'Bags ' + f.arrives.baggage : ''])) + '</div>';
+    if (f.leaveBy && f.leaveBy.ms > Date.now() - 30 * 60000) {
+      lines += '<div style="font-size:40px;font-weight:700;margin-top:22px">Leave by ' + esc(f.leaveBy.time) + '</div><div style="font-size:26px;color:var(--text2)">' + esc(f.leaveBy.driveMins + ' min drive to ' + f.leaveBy.airport + (f.leaveBy.kind === 'pickup' ? ', there when they land' : '')) + '</div>';
+    }
+    if (f.position && f.position.altFt) lines += '<div style="font-size:26px;color:var(--text3);margin-top:16px">' + esc(join([Math.round(f.position.altFt / 100) * 100 + ' ft', f.position.mph ? f.position.mph + ' mph' : ''])) + '</div>';
+    if (f.note) lines += '<div style="font-size:24px;color:var(--text3);margin-top:16px">' + esc(f.note) + '</div>';
+    else if (!f.live) lines += '<div style="font-size:24px;color:var(--text3);margin-top:16px">From the calendar. Add a FlightAware key on the setup page for live status.</div>';
+    return lines;
+  }
+
   function travelScreen(sub) {
+    if (String(sub || '').indexOf('flight:') === 0) {
+      var f = flightById(String(sub).slice(7));
+      if (f) return '<div class="split"><div class="card">' + flightCard(f) + '</div><div class="map f ring" data-f="map" data-full="map" id="paneMap"><div class="empty" style="padding:40px">Loading the map...</div></div></div>';
+    }
     var ms = arr(get(data, 'transport.members', []));
     var m = ms.filter(function (x) { return x.id === sub; })[0] || ms[0] || {};
     var bus = data.bus || {}, t = m.nextEventTrip, html;
@@ -511,7 +565,7 @@
     var l = data.lists || {}, html = '<div class="scroll"><div class="scroll-inner">';
     if (sub === 'groceries') {
       var g = arr(get(l, 'groceries.toBuy', []));
-      html += '<div class="list three">' + (g.map(function (x) { return '<div class="item"><span class="x one">' + esc(x.name) + '</span></div>'; }).join('') || '<div class="empty">The grocery list is empty.</div>') + '</div>';
+      html += '<div class="list three">' + (g.map(function (x) { return checkItem('groceries', x.id, x.name, ''); }).join('') || '<div class="empty">The grocery list is empty.</div>') + '</div>';
     } else if (sub === 'meals') {
       html += '<div class="list one">' + arr(get(l, 'meals.week', [])).map(function (d) {
         var m = arr(d.meals);
@@ -520,11 +574,27 @@
       }).join('') + '</div>';
     } else {
       var t = l.todos || {};
-      var row = function (x) { return '<div class="item"><span class="x one">' + esc(x.title) + '</span><small>' + esc(x.who) + (x.private ? '  ·  private' : '') + '</small></div>'; };
+      var row = function (x) { return checkItem('todos', x.id, x.title, x.who + (x.private ? '  ·  private' : '')); };
       html += '<div class="lbl">TODAY</div><div class="list">' + (arr(t.today).map(row).join('') || '<div class="empty">Nothing due today.</div>') + '</div>' +
         '<div class="lbl" style="margin-top:18px">ANYTIME</div><div class="list">' + (arr(t.anytime).map(row).join('') || '<div class="empty">No anytime to-dos.</div>') + '</div>';
     }
     return html + '</div></div>';
+  }
+
+  // a to-do or grocery the remote can check off: OK checks it, OK again (before the next refresh) undoes it
+  var checked = {};
+  function checkItem(kind, id, text, small) {
+    var key = kind + ':' + id, on = checked[key];
+    return '<div class="item f' + (on ? ' checked' : '') + '" data-f="chk-' + esc(key) + '" data-check="' + esc(key) + '"><span class="box">' + (on ? '&#10003;' : '') + '</span><span class="x one">' + esc(text) + '</span>' + (small ? '<small>' + esc(small) + '</small>' : '') + '</div>';
+  }
+  function toggleCheck(key) {
+    var parts = key.split(':'), kind = parts[0], id = parts.slice(1).join(':'), undo = Boolean(checked[key]);
+    if (undo) delete checked[key]; else checked[key] = Date.now();
+    render();
+    fetch('/api/lists/' + kind + '/' + encodeURIComponent(id) + '/' + (undo ? 'undo' : 'done'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tv: tvId }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'That didn\'t save.'); return j; }); })
+      .then(function (j) { toast(undo ? 'Back on the list: ' + j.title : 'Checked off: ' + j.title + '. OK again to undo.'); })
+      .catch(function (e) { if (undo) checked[key] = Date.now(); else delete checked[key]; render(); toast(e.message); });
   }
 
   function haScreen() {
@@ -546,11 +616,12 @@
       if (goTo && !document.body.classList.contains('idle')) hints.push(['OK', 'Open ' + (goTo === 'weather' ? 'Weather' : NAMES[OPENS[goTo][0]])]);
       else hints = [['ARROWS', 'Pick a section to open']];
     } else {
-      hints.push(['BACK', 'Home']);
+      hints.push(['BACK', 'Today']);
       hints.push(['LEFT / RIGHT', 'Switch screen']);
       if (nav.view === 'travel') hints.push(['OK', 'Full-screen map']);
       if (nav.view === 'weather') hints.push(['OK', 'Full-screen radar']);
       if (nav.view === 'chores' && arr(data && data.chores).length) hints.push(['OK', 'Check off a chore']);
+      if (nav.view === 'lists' && currentSub() !== 'meals') hints.push(['OK', 'Check off']);
       if (chipsFor(nav.view).length) hints.push(['DOWN', 'Options']);
     }
     if (musicBlocked) hints.unshift(['OK', 'Play the music']);
@@ -579,10 +650,20 @@
       if (!t) return '';
       var x = m.originX + (i % cols) * size, y = m.originY + Math.floor(i / cols) * size;
       return '<img alt="" src="' + esc(t) + '" style="left:' + x + 'px;top:' + y + 'px;width:' + (size + 1) + 'px;height:' + (size + 1) + 'px">';
-    }).join('') + '<div class="wash"></div>' + arr(m.pins).map(function (p) {
+    }).join('') + '<div class="wash"></div>' + routeLine(m) + arr(m.pins).map(function (p) {
+      if (p.kind === 'plane') {
+        return '<div class="plane" style="left:' + p.x + 'px;top:' + p.y + 'px"><svg viewBox="0 0 24 24" width="64" height="64" style="transform:rotate(' + (p.rot || 0) + 'deg)"><path fill="' + css(p.color, '#7DD3FC') + '" stroke="#0B1611" stroke-width="1" d="M12 2c.8 0 1.3.8 1.3 1.7v5.6l7.7 4.5v2.1l-7.7-2.4v4.6l2.2 1.7V21L12 20.1 8.5 21v-1.2l2.2-1.7v-4.6L3 15.9v-2.1l7.7-4.5V3.7C10.7 2.8 11.2 2 12 2z"/></svg>' + (p.label ? '<span>' + esc(p.label) + '</span>' : '') + '</div>';
+      }
+      if (p.kind === 'airport') return '<div class="pin airport" style="left:' + p.x + 'px;top:' + p.y + 'px"><i></i><span>' + esc(p.label) + '</span></div>';
       return '<div class="pin' + (p.kind === 'home' ? ' home' : '') + '" style="left:' + p.x + 'px;top:' + p.y + 'px"><i style="' + (p.kind === 'home' ? '' : 'background:' + css(p.color)) + '"></i>' + (p.label ? '<span>' + esc(p.label) + '</span>' : '') + '</div>';
     }).join('');
     el.innerHTML = '<div style="position:absolute;left:0;top:0;width:' + (m.width || 1920) + 'px;height:' + (m.height || 1080) + 'px">' + html + '</div>' + (full ? '' : '<div class="badge">OK for full screen</div>');
+  }
+  function routeLine(m) {
+    var pts = arr(m.path);
+    if (pts.length < 2) return '';
+    return '<svg class="route" width="' + (m.width || 1920) + '" height="' + (m.height || 1080) + '"><polyline fill="none" stroke="#F4EFE6" stroke-opacity=".8" stroke-width="4" stroke-dasharray="12 10" points="' +
+      pts.map(function (p) { return p.x + ',' + p.y; }).join(' ') + '"/></svg>';
   }
   function loadMap(el, who, w, h, full) {
     var q = new URLSearchParams({ zoom: 'auto', w: String(Math.round(w)), h: String(Math.round(h)) });
@@ -804,6 +885,8 @@
     if (chip) return selectChip(chip);
     var full = el.getAttribute('data-full');
     if (full) return openFull(full);
+    var chk = el.getAttribute('data-check');
+    if (chk) return toggleCheck(chk);
     var chore = el.getAttribute('data-chore');
     if (chore) { var c = arr(data.chores).filter(function (x) { return String(x.id) === chore; })[0]; if (c) openPicker(c); }
   }

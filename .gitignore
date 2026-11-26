@@ -6,6 +6,8 @@ calendar-filters.json
 home-assistant.json
 tvs.json
 music.json
+flights.json
+flights-usage.json
 music/
 addons/
 *firebase-adminsdk*.json

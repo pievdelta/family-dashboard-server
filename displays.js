@@ -18,7 +18,7 @@ export const CARDS = [
   { id: 'todos', name: 'To-dos' },
   { id: 'groceries', name: 'Grocery list' },
   { id: 'meals', name: 'Meal plan' },
-  { id: 'home', name: 'Home (Home Assistant)' }
+  { id: 'home', name: 'Smart home (Home Assistant)' }
 ];
 /** The screens a TV can open from Home. */
 export const SECTIONS = [
@@ -27,7 +27,7 @@ export const SECTIONS = [
   { id: 'travel', name: 'Travel' },
   { id: 'chores', name: 'Chores' },
   { id: 'lists', name: 'Lists (to-dos, groceries, meals)' },
-  { id: 'home', name: 'Home (Home Assistant)' }
+  { id: 'home', name: 'Smart home (Home Assistant)' }
 ];
 const CARD_IDS = CARDS.map(c => c.id);
 const SECTION_IDS = SECTIONS.map(s => s.id);

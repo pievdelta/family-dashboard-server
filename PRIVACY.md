@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Effective November 25, 2026*
+*Effective November 26, 2026*
 
 This policy covers the **Family Dashboard** app for Roku, the **Family Dashboard Server**,
 and the **Family Dashboard** app for Android and Android TV (first released as Chore Bounty Board) (together, "Family Dashboard").
@@ -75,6 +75,15 @@ Everything is yours to change or delete: edit or remove settings from the server
 or the phone app, delete your Firebase project in the Firebase console, and uninstall the
 apps and server at any time. Because we never receive your data, there is nothing for us to
 delete.
+
+## Flights (optional)
+
+If a family turns on flights, the server looks for flight numbers in the family's calendar and
+asks FlightAware about those flights, under the family's own FlightAware key: only the airline
+and flight number are sent, never names, notes or other events. With an OpenSky account, the
+server also asks OpenSky where planes are, which sends nothing about the family. What comes
+back stays on the family's own computer and TVs. Client names in calendar events show on the
+family's TVs like any other event.
 
 ## Music (optional)
 

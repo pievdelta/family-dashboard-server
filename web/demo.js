@@ -13,6 +13,7 @@
   const TILE = '/web/demo';
   const state = { overviewMember: 'all', selectedWxLoc: 'riverside', transport: 'maya', modes: {}, cals: {}, zoom: 15 };
   const done = new Set();
+  const listDone = new Set(); // to-dos and groceries checked off from a TV
 
   const pad = (n) => String(n).padStart(2, '0');
   const tl = (h, m) => `${h % 12 || 12}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -160,20 +161,59 @@
       display: new URLSearchParams(location.search).get('tv') || location.pathname === '/tv' ? { id: 'demo-tv', name: 'Living room', profileId: 'house' } : null,
       layout: { cards: ['next', 'today', 'weather', 'travel', 'chores', 'todos', 'groceries', 'meals', 'home'], sections: ['calendar', 'weather', 'travel', 'chores', 'lists', 'home'] },
       lists: {
-        todos: { today: [{ id: 't1', title: 'Call the plumber', who: 'Dana', private: false }, { id: 't2', title: 'Sign the field trip form', who: 'Both', private: false }],
-          anytime: [{ id: 't3', title: 'Renew car registration', who: 'Sam', private: false }, { id: 't4', title: 'Book summer camp', who: 'Both', private: false }, { id: 't5', title: 'Replace the porch light', who: 'Sam', private: false }], count: 5 },
-        groceries: { toBuy: ['Milk', 'Eggs', 'Bananas', 'Bread', 'Chicken thighs', 'Tortillas', 'Shredded cheese', 'Apples', 'Coffee', 'Paper towels'].map((name, i) => ({ id: `g${i}`, name })), count: 10 },
+        todos: (() => {
+          const today = [{ id: 't1', title: 'Call the plumber', who: 'Dana', private: false }, { id: 't2', title: 'Sign the field trip form', who: 'Both', private: false }].filter(x => !listDone.has(`todos:${x.id}`));
+          const anytime = [{ id: 't3', title: 'Renew car registration', who: 'Sam', private: false }, { id: 't4', title: 'Book summer camp', who: 'Both', private: false }, { id: 't5', title: 'Replace the porch light', who: 'Sam', private: false }].filter(x => !listDone.has(`todos:${x.id}`));
+          return { today, anytime, count: today.length + anytime.length };
+        })(),
+        groceries: (() => {
+          const toBuy = ['Milk', 'Eggs', 'Bananas', 'Bread', 'Chicken thighs', 'Tortillas', 'Shredded cheese', 'Apples', 'Coffee', 'Paper towels'].map((name, i) => ({ id: `g${i}`, name })).filter(x => !listDone.has(`groceries:${x.id}`));
+          return { toBuy, count: toBuy.length };
+        })(),
         meals: (() => {
           const dinners = ['Chicken tacos', 'Spaghetti and meatballs', '', 'Sheet-pan salmon', 'Homemade pizza', '', 'Slow cooker chili'];
           const week = dinners.map((name, i) => { const d = addDays(now, i); return { date: iso(d), label: i === 0 ? 'Tonight' : i === 1 ? 'Tomorrow' : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()], meals: name ? [{ meal: 'dinner', name, time: null }] : [] }; });
           return { week, tonight: week[0].meals, today: iso(now) };
         })()
       },
+      flights: demoFlights(nowMs),
       serverTime: Math.floor(nowMs / 1000), serverVersion: 'demo', demo: true
     };
   }
 
+  // two flights for the demo: Grandma flying in (a pickup), and a client's flight later today
+  const clock = (msv) => new Date(msv).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  function demoFlights(nowMs) {
+    const land = nowMs + 72 * 60000, left = nowMs - 98 * 60000, smithOut = nowMs + 3.2 * 3600000;
+    return [
+      { id: 'B6815-demo', code: 'B6 815', airline: 'JetBlue', kind: 'family', pickup: true, who: 'Grandma', colorHex: '0xC084FCFF', eventTitle: 'Pick up Grandma B6 815',
+        phase: 'air', status: 'In the air', live: true, from: { code: 'BOS', city: 'Boston', name: 'Boston Logan International Airport' }, to: { code: 'MCO', city: 'Orlando', name: 'Orlando International Airport' },
+        departs: { ms: left, time: clock(left), label: 'Left the gate', gate: 'C19', terminal: 'C' }, arrives: { ms: land, time: clock(land), label: 'Arrives', gate: '11', terminal: 'B', baggage: '' },
+        progress: 58, position: { lat: 34.2, lon: -78.4, track: 205, altFt: 36000, mph: 512, estimate: false },
+        leaveBy: { ms: land + 15 * 60000 - 34 * 60000, time: clock(land + 15 * 60000 - 34 * 60000), driveMins: 34, airport: 'MCO', kind: 'pickup' }, note: '', updatedAt: nowMs - 4 * 60000 },
+      { id: 'AA1450-demo', code: 'AA 1450', airline: 'American', kind: 'client', pickup: false, who: 'Rivera family', colorHex: '0x7DD3FCFF', eventTitle: 'Client: Rivera family AA 1450',
+        phase: 'delayed', status: 'Delayed 25 min', live: true, from: { code: 'PHL', city: 'Philadelphia', name: 'Philadelphia International Airport' }, to: { code: 'MCO', city: 'Orlando', name: 'Orlando International Airport' },
+        departs: { ms: smithOut, time: clock(smithOut), label: 'Departs', gate: 'B7', terminal: 'B' }, arrives: { ms: smithOut + 2.6 * 3600000, time: clock(smithOut + 2.6 * 3600000), label: 'Arrives', gate: '', terminal: 'A', baggage: '' },
+        progress: 0, position: null, leaveBy: null, note: '', updatedAt: nowMs - 12 * 60000 }
+    ];
+  }
+  function flightMap(q, id) {
+    const width = Math.max(320, Number(q.get('w')) || 1920), height = Math.max(240, Number(q.get('h')) || 1080);
+    const f = demoFlights(Date.now()).find(x => x.id === id);
+    if (!f) return null;
+    // a simple stand-in for the real map: the east coast, with the route and the plane
+    const P = { BOS: [0.74, 0.16], PHL: [0.62, 0.3], MCO: [0.32, 0.84] };
+    const a = P[f.from.code], b = P[f.to.code];
+    const at = (u, v) => ({ x: Math.round(u * width), y: Math.round(v * height) });
+    const path = Array.from({ length: 21 }, (_, i) => at(a[0] + (b[0] - a[0]) * i / 20 - Math.sin(Math.PI * i / 20) * 0.04, a[1] + (b[1] - a[1]) * i / 20));
+    const pins = [{ kind: 'airport', label: f.from.code, ...at(a[0], a[1]) }, { kind: 'airport', label: f.to.code, ...at(b[0], b[1]) }];
+    if (f.position) pins.push({ kind: 'plane', label: f.code, color: f.colorHex, rot: 210, ...path[Math.round(f.progress / 5)] });
+    return { zoom: 5, tileSize: 256, width, height, originX: 0, originY: 0, cols: 0, rows: 0, tiles: [], pins, path,
+      title: `${f.code}  ·  ${f.who}`, status: f.status, detail: `${f.from.code} → ${f.to.code}  ·  ${f.arrives.label} ${f.arrives.time}`, live: f.phase === 'air' };
+  }
+
   function fullMap(q) {
+    if (String(q.get('who') || '').startsWith('flight:')) { const fm = flightMap(q, q.get('who').slice(7)); if (fm) return fm; }
     const zoom = q.get('zoom') && q.get('zoom') !== 'auto' ? Number(q.get('zoom')) : 15;
     const width = Math.max(320, Number(q.get('w')) || 1920), height = Math.max(240, Number(q.get('h')) || 1080);
     const cols = Math.ceil((width + 80) / 256), rows = Math.ceil((height + 60) / 256);
@@ -204,6 +244,14 @@
       return json(build(new Date()));
     }
     if (url.pathname === '/api/map/full') return json(fullMap(q));
+    const lm = url.pathname.match(/^\/api\/lists\/(todos|groceries)\/([^/]+)\/(done|undo)$/);
+    if (lm) {
+      const key = `${lm[1]}:${decodeURIComponent(lm[2])}`;
+      if (lm[3] === 'done') listDone.add(key); else listDone.delete(key);
+      const names = { 'todos:t1': 'Call the plumber', 'todos:t2': 'Sign the field trip form', 'todos:t3': 'Renew car registration', 'todos:t4': 'Book summer camp', 'todos:t5': 'Replace the porch light' };
+      const groc = ['Milk', 'Eggs', 'Bananas', 'Bread', 'Chicken thighs', 'Tortillas', 'Shredded cheese', 'Apples', 'Coffee', 'Paper towels'];
+      return json({ ok: true, done: lm[3] === 'done', title: names[key] || groc[Number(String(lm[2]).slice(1))] || '' });
+    }
     const m = url.pathname.match(/^\/api\/chores\/([^/]+)\/done$/);
     if (m) {
       let who = '';

@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.13.0
+
+- **Flights (optional).** Calendar events with a flight number are tracked on the TVs with the family's own FlightAware AeroAPI key: status, delays, terminals, gates, landing time, and the plane on the Travel map (live with an OpenSky API client, otherwise placed along its route). Family flights get a time to leave for the airport (drive plus a buffer) and alerts for delays, gate changes, takeoff and landing; pickups get a time to leave so you're there when they land; client flights (the work calendar, or "client" in the event) show their status without a time to leave or a chime. Checks stay within a monthly budget you set. Set it up under **Flights** on the setup page. The dashboard has a new `flights` list, and `/api/map/full?who=flight:<id>` draws a flight's map with its route.
+- **Check off to-dos and groceries from a TV.** On the TV page, OK checks an item off and OK again undoes it. `POST /api/lists/todos|groceries/<id>/done` (and `/undo`) is ready for the Roku app 4.5. Private to-dos can only be checked off on a TV whose layout shows them.
+- **Today and Smart home.** The TV page's landing screen is "Today" (like the Roku app) and the Home Assistant section is now "Smart home".
+- The TV page's tabs fit six sections next to the clock.
+- Airport locations come from OurAirports (public domain).
+
 ## 5.12.0
 
 - **Music on the TVs (optional add-on).** The server can show up as a speaker in the Spotify app (with go-librespot, Spotify Premium) and in AirPlay (with shairport-sync), and every TV showing Family Dashboard plays along while the dashboard stays on screen. Turn it on under **Music** on the setup page. Each TV's layout has a new **Plays music** setting, so a bedroom TV can stay quiet. The song and artist show at the bottom of the TV, and a remote's play, pause and skip keys control Spotify. TVs get one MP3 stream at `/api/music/stream.mp3`; what's playing is at `/api/music/now`.

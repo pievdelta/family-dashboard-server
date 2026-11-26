@@ -1,6 +1,6 @@
 # Family Dashboard Terms of Use
 
-*Effective November 25, 2026*
+*Effective November 26, 2026*
 
 These terms cover the **Family Dashboard** apps for Android, Android TV, Fire TV and Roku, the
 TV page, and the **Family Dashboard Server** (together, "Family Dashboard"). By using Family
@@ -34,6 +34,13 @@ Calendars, weather, radar, maps, drive times, school bus locations and Home Assi
 other services and can be late, missing or wrong. Don't rely on Family Dashboard alone for
 anything where timing or safety matters, such as when to meet the bus or severe weather.
 Each of those services has its own terms.
+
+## Flights
+
+Flight status, gates, times and positions come from FlightAware and OpenSky and can be late or
+wrong. Always check with the airline before heading to the airport. FlightAware's Personal tier
+is for personal use; you're responsible for using your own key under FlightAware's and
+OpenSky's terms.
 
 ## Music
 

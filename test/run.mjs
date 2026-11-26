@@ -245,6 +245,95 @@ await test('server starts and answers', async () => {
   }
 });
 
+await test('flights: found on the calendar, tracked within budget, with leave-by times and alerts', async () => {
+  const { createFlights, findFlight, pickAeroFlight, readAero, phaseOf, isClientEvent } = await import('../flights.js');
+  assert.equal(findFlight('Flight to Orlando (DL 1234)').code, 'DL 1234');
+  assert.equal(findFlight('Southwest flight 88').code, 'WN 88');
+  assert.equal(findFlight('Room 12 PTA meeting'), null);
+  assert.equal(findFlight('OH 5 staff meeting'), null);
+  assert.equal(findFlight('Pick up Grandma B6 815').code, 'B6 815');
+  assert.ok(isClientEvent({ title: 'X', sourceType: 'work' }, { workIsClients: true }));
+  assert.ok(!isClientEvent({ title: 'X', sourceType: 'work' }, { workIsClients: false }));
+  assert.ok(isClientEvent({ title: 'Client: Rivera AA 1450', sourceType: 'family' }, { workIsClients: false }));
+
+  const H = 3600e3;
+  let t = Date.parse('2026-12-04T12:00:00Z');
+  const iso = (msv) => new Date(msv).toISOString().replace('.000', '');
+  // FlightAware lists yesterday's and today's DAL1234: the one near the calendar time wins
+  const list = [{ scheduled_out: iso(t - 22 * H) }, { scheduled_out: iso(t + 3 * H) }];
+  assert.equal(pickAeroFlight(list, t + 3 * H + 5 * 60e3), list[1]);
+  assert.equal(pickAeroFlight([{ scheduled_out: iso(t + 60 * H) }], t), null);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-flights-'));
+  fs.writeFileSync(path.join(dir, 'flights.json'), JSON.stringify({ enabled: true, aeroKey: 'k', bufferMin: 120, monthlyDollars: 0.05 }));
+  const dep = t + 3 * H;
+  const events = [
+    { title: 'Flight to Orlando (DL 1234)', startMs: dep, endMs: dep + 2 * H, sourceType: 'family', location: 'ATL' },
+    { title: 'Pick up Grandma B6 815', startMs: t + 5 * H, endMs: t + 5 * H, sourceType: 'family' },
+    { title: 'Rivera family AA 1450', startMs: t + 4 * H, endMs: t + 6 * H, sourceType: 'work' },
+    { title: 'Dentist', startMs: t + H, sourceType: 'family' }
+  ];
+  let aero = {
+    DAL1234: { ident_icao: 'DAL1234', status: 'Scheduled', origin: { code_iata: 'ATL', timezone: 'America/New_York', city: 'Atlanta' }, destination: { code_iata: 'MCO', timezone: 'America/New_York', city: 'Orlando' },
+      scheduled_out: iso(dep), estimated_out: iso(dep), scheduled_in: iso(dep + 1.5 * H), gate_origin: 'A12', terminal_origin: 'S', departure_delay: 0 },
+    JBU815: { ident_icao: 'JBU815', status: 'En Route', origin: { code_iata: 'BOS' }, destination: { code_iata: 'MCO' }, scheduled_out: iso(t + 2 * H), actual_out: iso(t + 2 * H), actual_off: iso(t + 2.2 * H),
+      scheduled_in: iso(t + 5 * H), estimated_in: iso(t + 5 * H), progress_percent: 40, gate_destination: '11' },
+    AAL1450: { ident_icao: 'AAL1450', status: 'Scheduled', origin: { code_iata: 'PHL' }, destination: { code_iata: 'MCO' }, scheduled_out: iso(t + 4 * H), scheduled_in: iso(t + 6 * H) }
+  };
+  const calls = [];
+  const fetchImpl = async (url, opts = {}) => {
+    calls.push(url);
+    const m = /flights\/([A-Z0-9]+)/.exec(url);
+    if (m) {
+      assert.equal(opts.headers['x-apikey'], 'k');
+      return { ok: true, status: 200, json: async () => ({ flights: aero[m[1]] ? [aero[m[1]]] : [] }) };
+    }
+    if (url.includes('/states/all')) return { ok: true, status: 200, json: async () => ({ states: [['abc123', 'JBU815  ', 'US', 0, 0, -78.5, 34.1, 10000, false, 230, 200]] }) };
+    throw new Error('unexpected ' + url);
+  };
+  const fl = createFlights({
+    file: path.join(dir, 'flights.json'), usageFile: path.join(dir, 'usage.json'), airportsFile: path.join(root, 'data', 'airports.json'),
+    log: () => {}, now: () => t, fetchImpl, events: () => events,
+    memberOf: (ev) => (/Orlando/.test(ev.title) ? ['leo'] : []), memberName: (id) => ({ leo: 'Leo' }[id] || id),
+    home: () => ({ lat: 33.75, lon: -84.39 }), // near Atlanta
+    driveTo: async () => ({ mins: 30, miles: '18.0', label: '30 mins (18.0 mi)' }),
+    timeIn: (msv) => new Date(msv).toISOString().slice(11, 16)
+  });
+  try {
+    await fl._tick();
+    const all = fl.summary();
+    assert.equal(all.length, 3, 'three flights, the dentist is not one');
+    const leo = all.find(f => f.code === 'DL 1234'), gma = all.find(f => f.code === 'B6 815'), cli = all.find(f => f.code === 'AA 1450');
+    assert.equal(gma.phase, 'air'); assert.equal(all[0].code, 'B6 815', 'the plane in the air comes first');
+    assert.ok(gma.position && gma.position.lat > 34 && !gma.position.estimate, 'OpenSky placed it');
+    assert.equal(cli.kind, 'client'); assert.equal(cli.leaveBy, null);
+    assert.equal(leo.kind, 'family'); assert.equal(leo.who, 'Leo');
+    // leave for ATL: departure - 2 h buffer - 30 min drive
+    assert.equal(leo.leaveBy.ms, dep - 2 * H - 30 * 60e3);
+    const trip = fl.tripFor('leo');
+    assert.equal(trip.leaveByMs, dep - 2.5 * H); assert.ok(trip.eventTitle.includes('DL 1234'));
+    // Grandma lands at MCO, far from home: no pickup drive planned
+    assert.equal(gma.leaveBy, null);
+    // the map: two airports, the plane, a route
+    const mp = fl.mapFor(gma.id);
+    assert.equal(mp.points.filter(p => p.kind === 'airport').length, 2);
+    assert.ok(mp.points.find(p => p.kind === 'plane')); assert.equal(mp.path.length, 41);
+    // delays and gate changes become alerts
+    aero.DAL1234 = { ...aero.DAL1234, estimated_out: iso(dep + 40 * 60e3), departure_delay: 2400, gate_origin: 'B3' };
+    t += 31 * 60e3;
+    await fl._tick();
+    const al = fl.alerts();
+    assert.ok(al.some(a => /delayed 40 min/.test(a.title)), JSON.stringify(al));
+    assert.ok(al.some(a => /Gate change/.test(a.title) && /B3/.test(a.detail)));
+    assert.equal(fl.get(leo.id).status, 'Delayed 40 min');
+    // the budget: $0.05 is 10 checks, then it stops asking
+    for (let i = 0; i < 12; i++) { t += 31 * 60e3; await fl._tick(); }
+    const checks = calls.filter(u => u.includes('/flights/')).length;
+    assert.ok(checks <= 10, `stayed within budget (${checks} checks)`);
+    assert.ok(/limit/.test(fl.status().problem || ''), 'says the limit is used up');
+  } finally { fl.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 await test('music: Spotify and AirPlay reach the TVs as one MP3 stream', async () => {
   const { createMusic, airplayMetaParser, spotifyStatus, cleanName, PcmSource } = await import('../music.js');
   // the pieces first

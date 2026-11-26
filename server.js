@@ -19,6 +19,7 @@ import { startAI, aiSettings } from './ai.js';
 import { startHomeAssistant } from './home-assistant.js';
 import { createDisplays, buildLists, BUILT_IN_PROFILES } from './displays.js';
 import { createMusic } from './music.js';
+import { createFlights } from './flights.js';
 
 // what a screen that isn't a named TV shows (a browser, an older Roku)
 const TV_DEFAULT_LAYOUT = BUILT_IN_PROFILES.house;
@@ -1220,6 +1221,7 @@ async function refreshTransportBackgroundCache() {
       const upcomingWithLoc = cachedExpandedEvents
         .filter(ev => {
           if (ev.isAllDay || !isPhysicalLocation(ev.location)) return false;
+          if (flights.isFlightEvent(ev)) return false; // flights plan their own drive to the airport
           const diff = ev.startMs - nowMs;
           if (diff < -15 * 60000 || diff > next24HoursMs) return false;
           const matched = matchEventToCategories(ev.title, ev.description, ev.location, ev.sourceType, categories);
@@ -1259,6 +1261,15 @@ async function refreshTransportBackgroundCache() {
             colorHex: mCfg.colorHex,
             startMs: upcomingWithLoc.startMs
           };
+        }
+      }
+
+      // a flight (or a pickup at the airport) that needs leaving sooner than the next event
+      const flightTrip = flights.tripFor(mCfg.id);
+      if (flightTrip && (!nextEventTrip || flightTrip.leaveByMs < nextEventTrip.leaveByMs)) {
+        nextEventTrip = flightTrip;
+        if (flightTrip.within2Hours && (!soonest2HrTrip || flightTrip.startMs < soonest2HrTrip.startMs)) {
+          soonest2HrTrip = { ...flightTrip, memberId: mCfg.id, memberName: mCfg.name, colorHex: mCfg.colorHex };
         }
       }
 
@@ -1433,6 +1444,29 @@ function getBusMapTiles(lat, lon, zoom = 15, hostHeader = `localhost:${PORT}`) {
 
 startLiveData();
 refreshWeatherBackgroundCache();
+// Flights (optional): flight numbers on the calendar, tracked with the family's own FlightAware and OpenSky keys
+const flightTimeFmt = new Map();
+function timeInZone(msv, tz) {
+  const zone = tz || TZ;
+  if (!flightTimeFmt.has(zone)) {
+    try { flightTimeFmt.set(zone, new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit', ...(zone !== TZ ? { timeZoneName: 'short' } : {}) })); } catch (e) { flightTimeFmt.set(zone, nyTimeLblFmt); }
+  }
+  return flightTimeFmt.get(zone).format(new Date(msv));
+}
+const flights = createFlights({
+  file: path.join(process.cwd(), 'flights.json'),
+  usageFile: path.join(process.cwd(), 'flights-usage.json'),
+  airportsFile: fileURLToPath(new URL('./data/airports.json', import.meta.url)),
+  events: () => cachedExpandedEvents,
+  memberOf: (ev) => matchEventToCategories(ev.title, ev.description, ev.location, ev.sourceType, buildPersonCategories()).memberKeys.filter(k => MEMBERS.some(m => m.id === k)),
+  memberName: (id) => (MEMBERS.find(m => m.id === id) || {}).name || id,
+  memberColor: (id) => (MEMBERS.find(m => m.id === id) || {}).colorHex || '0xE8623CFF',
+  home: () => (HOME_LAT || HOME_LON ? { lat: HOME_LAT, lon: HOME_LON } : null),
+  driveTo: (lat, lon) => getDriveRoute(lat, lon),
+  timeIn: timeInZone
+});
+flights.start();
+
 refreshCalendarBackgroundCache();
 
 // no Firebase reads here: this only re-sorts what the listeners already have,
@@ -1506,7 +1540,7 @@ function buildAlerts() {
         at: Math.floor(trip.leaveByMs / 1000),
         until: Math.floor(trip.startMs / 1000),
         title: `Time to leave${mem.name ? ` for ${mem.name}` : ''}`,
-        detail: [trip.eventTitle, `${trip.driveMins} min drive`, `starts ${trip.eventTime}`].filter(Boolean).join('  ·  '),
+        detail: [trip.eventTitle, `${trip.driveMins} min drive`, trip.flight ? trip.eventTime : `starts ${trip.eventTime}`].filter(Boolean).join('  ·  '),
         colorHex: mem.colorHex,
         sound: !inQuietHours(trip.leaveByMs)
       });
@@ -1522,6 +1556,9 @@ function buildAlerts() {
     const urgent = /smoke|gas|carbon monoxide|water|going off/i.test(a.title);
     alerts.push({ ...a, colorHex: urgent ? '0xEF4444FF' : '0xF59E0BFF', sound: urgent || !inQuietHours(a.at * 1000) });
   }
+
+  // flights: delays, gate changes, takeoff and landing (client flights without the chime)
+  for (const a of flights.alerts(nowMs)) alerts.push({ ...a, sound: a.sound && !inQuietHours(a.at * 1000) });
 
   alerts.sort((a, b) => a.at - b.at);
   return alerts.slice(0, 30);
@@ -1703,6 +1740,8 @@ app.get('/api/dashboard', (req, res) => {
       layout: { cards: layout.cards, sections: layout.sections, music: layout.music !== false },
       // music playing on the server's speaker (Spotify or AirPlay), for TVs to play along; null when off
       music: music.summary(),
+      // flights on the calendar (server 5.13, optional): status, gates, where the plane is; null when off
+      flights: flights.summary(),
       lists: buildLists({ ...liveData, profile: layout, isoOf: toNyIsoDate, dayName: (d) => nyWeekdayFmt.format(d) }),
       alerts: buildAlerts()
     });
@@ -1715,6 +1754,24 @@ app.get('/api/dashboard', (req, res) => {
 // and home, zoomed so both fit. ?who= picks the person, ?zoom= a number or auto.
 app.get('/api/map/full', (req, res) => {
   const hostHeader = req.headers.host || `localhost:${PORT}`;
+  // a flight: both airports, the route, and the plane
+  if (String(req.query.who || '').startsWith('flight:')) {
+    const fm = flights.mapFor(String(req.query.who).slice(7));
+    if (!fm || !fm.points.length) return res.status(404).json({ error: 'No map for that flight yet.' });
+    const v = fm.view;
+    const map = buildFullMap({
+      points: fm.points, path: fm.path, minZoom: 2, zoom: req.query.zoom || 'auto', width: req.query.w, height: req.query.h,
+      tileUrl: (z, x, y) => `http://${hostHeader}/api/tile?type=osm&z=${z}&x=${x}&y=${y}`
+    });
+    if (!map) return res.status(404).json({ error: 'No map for that flight yet.' });
+    return res.json({
+      ...map,
+      title: `${v.code}${v.who ? `  ·  ${v.who}` : ''}`,
+      status: v.status,
+      detail: [`${v.from.code} → ${v.to.code}`, v.departs.time ? `${v.departs.label} ${v.departs.time}` : '', v.arrives.time ? `${v.arrives.label} ${v.arrives.time}` : ''].filter(Boolean).join('  ·  '),
+      live: v.phase === 'air', updatedAt: Date.now()
+    });
+  }
   const who = String(req.query.who || filterState.selectedTransportMember || '').toLowerCase();
   const mem = cachedTransportMembers.find(m0 => m0.id === who) || null;
   const homePoint = (HOME_LAT || HOME_LON) ? { kind: 'home', label: 'Home', lat: HOME_LAT, lon: HOME_LON, color: '0xF8FAFCFF' } : null;
@@ -1765,11 +1822,12 @@ const displays = createDisplays({ file: path.join(process.cwd(), 'tvs.json') });
 // Home Assistant (optional, read-only): picked devices on the TV and alerts when they need someone
 const homeAssistant = startHomeAssistant({ picksFile: path.join(process.cwd(), 'home-assistant.json') });
 
+
 // Music (optional): Spotify and AirPlay to every TV
 const music = createMusic({ file: path.join(process.cwd(), 'music.json'), dataDir: process.cwd() });
 music.start();
 const setupSections = setupExtras(app, {
-  updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant, displays, music,
+  updater, dataDir: process.cwd(), requestRestart, aiState: () => aiStatus, homeAssistant, displays, music, flights,
   parents: () => liveData.users.filter(u => String(u.role || '').toUpperCase() === 'PARENT' && u.name).map(u => ({ id: u.id, name: u.name }))
 });
 
@@ -1828,6 +1886,34 @@ app.post('/api/chores/:id/done', homeOnlyApi, async (req, res) => {
     });
     if (result.status !== 200) return res.status(result.status).json({ error: result.error });
     res.json({ ok: true, state: result.state, name: user.name || user.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Check off a to-do or a grocery from a TV (server 5.13), and undo it right after.
+// A private to-do can only be checked off on a TV whose layout shows it.
+app.post('/api/lists/:kind/:id/:action', homeOnlyApi, async (req, res) => {
+  const { kind, id, action } = req.params;
+  if (!['todos', 'groceries'].includes(kind) || !['done', 'undo'].includes(action)) return res.status(404).json({ error: 'Not a list.' });
+  if (!db) return res.status(503).json({ error: 'Lists are off on this server.' });
+  const ref = db.collection('households').doc(householdId).collection(kind).doc(id);
+  try {
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'That one is gone.' });
+    const item = snap.data();
+    if (kind === 'todos' && item.private) {
+      const display = displays.seen({ tv: req.body?.tv || req.query.tv }, req.ip);
+      const allowed = new Set(display?.profile?.privateTodosOf || []);
+      if (!allowed.has(item.ownerId)) return res.status(403).json({ error: 'That to-do is private.' });
+    }
+    const done = action === 'done';
+    await ref.update(done ? { done: true, doneAt: Date.now(), doneBy: 'tv' } : { done: false, doneAt: null, doneBy: null });
+    // the TV's next refresh shows it right away
+    const list = liveData[kind];
+    const local = Array.isArray(list) ? list.find(x => x.id === id) : null;
+    if (local) Object.assign(local, done ? { done: true, doneAt: Date.now() } : { done: false, doneAt: null });
+    res.json({ ok: true, done, title: String(item.title || item.name || '') });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

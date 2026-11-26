@@ -53,6 +53,25 @@ with the cards and sections you choose. A layout can also show one parent's priv
 for the TV in your bedroom. The Roku app uses the same layouts from version 4.5. The list
 of TVs is kept in `tvs.json`.
 
+## Flights (optional)
+
+Any calendar event with a flight number ("DL 1234", "Delta 1234", or Google's own "Flight to
+Orlando (DL 1234)") shows on the TVs: on time or delayed, terminals and gates, when it lands,
+and where the plane is on the Travel map.
+
+- **Family flights** get a time to leave for the airport (the drive plus a buffer, 2 hours unless
+  you change it) and alerts for delays, gate changes, takeoff and landing.
+- **Pickups** ("Pick up Grandma B6 815") get a time to leave so you're at the curb when they land.
+- **Client flights** (on the work calendar, or with "client" in the event) show their status and
+  landing, without a time to leave or a chime.
+
+On the setup page, open **Flights**, add a [FlightAware AeroAPI](https://www.flightaware.com/aeroapi/portal)
+key (the Personal tier's first $5 a month is free, about 30 flights) and, optionally, an
+[OpenSky](https://opensky-network.org) API client for the plane's live position. The server checks
+a flight every 30 minutes until 3 hours before departure, then every 8 minutes until it lands,
+and stops at the monthly limit you set. FlightAware's Personal tier is for personal use, so each
+family uses its own key.
+
 ## Music on the TVs (optional)
 
 Play music from a phone to every TV showing Family Dashboard, while the dashboard stays on
@@ -220,7 +239,7 @@ in `household.json` with `"hasBus": true` who is set to ride the bus that day.
 
 ## Keep private
 
-`config.txt`, `household.json`, `firebase-app.json`, `home-assistant.json`, `tvs.json`, `music.json` and the Firebase key file hold
+`config.txt`, `household.json`, `firebase-app.json`, `home-assistant.json`, `tvs.json`, `music.json`, `flights.json` and the Firebase key file hold
 your secrets and your address. They are listed in `.gitignore`. Leave them out of anything you share.
 
 The server has no password. Run it only on your home network and do not
@@ -255,3 +274,6 @@ It comes with no warranty. See [LICENSE](LICENSE).
 
 If you run a modified version for other people to use over a network, the AGPL
 asks you to offer them its source code too.
+
+Airport names and locations in `data/airports.json` come from
+[OurAirports](https://ourairports.com/data/), which is in the public domain.
